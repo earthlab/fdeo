@@ -19,15 +19,18 @@ class BaseAPI:
     """
     Defines all of the attributes and methods common to the child APIs.
     """
+
+    PROJ_DIR = os.path.dirname(os.path.dirname(__file__))
+    _NETRC_PATH = os.path.join(str(Path.home()), '.netrc')
+
     def __init__(self):
         """
         Initializes the common attributes required for each data type's API
         """
         self._username = None
         self._password = None
-        self._temp_dir = os.path.join(os.getcwd(), 'tmp')
+        self._temp_dir = os.path.join(self.PROJ_DIR, 'data', 'tmp')
         self._core_count = os.cpu_count()
-        self._netrc_path = os.path.join(str(Path.home()), '.netrc')
         self._configure()
 
     @staticmethod
@@ -54,8 +57,8 @@ class BaseAPI:
         """
         print('Please input your earthdata.nasa.gov username and password. If you do not have one, you can register'
               ' here: https://urs.earthdata.nasa.gov/users/new')
-        username = getpass.getuser()
-        password = getpass.getpass()
+        username = input('Username:')
+        password = getpass.getpass('Password:', stream=None)
 
         return username, password
 
@@ -65,32 +68,43 @@ class BaseAPI:
         credentials. If this file does not exist or the credentials are missing / misformatted, query the user for
         their credentials and write them to the file.
         """
-        if not os.path.exists(self._netrc_path):
+        if not os.path.exists(self._NETRC_PATH):
             username, password = self._cred_query()
-            with open(self._netrc_path, 'w+') as f:
+            with open(self._NETRC_PATH, 'w+') as f:
                 f.write(f'machine urs.earthdata.nasa.gov login {username} password {password}')
+            self._username = username
+            self._password = password
 
         else:
             earth_data_re = r'machine urs.earthdata.nasa.gov login (?P<username>.+) password (?P<password>.+)'
             cred_found = False
-            with open(self._netrc_path, 'r') as f:
+            with open(self._NETRC_PATH, 'r') as f:
                 for line in f.readlines():
                     match = re.match(earth_data_re, line)
                     if match is not None:
                         params = match.groupdict()
-                        print(f'urs.earthdata.nasa.gov credentials found in {self._netrc_path}')
+                        print(f'urs.earthdata.nasa.gov credentials found in {self._NETRC_PATH}')
                         self._username = params['username']
                         self._password = params['password']
                         cred_found = True
                         break
 
             if not cred_found:
-                print(f'Could not find valid urs.earthdata.nasa.gov credentials at {self._netrc_path}')
+                print(f'Could not find valid urs.earthdata.nasa.gov credentials at {self._NETRC_PATH} . '
+                      f'Credentials will be written to this file once supplied.')
                 username, password = self._cred_query()
-                with open(self._netrc_path, 'w') as f:
-                    f.write(f'machine urs.earthdata.nasa.gov login {username} password {password}')
 
-        os.chmod(self._netrc_path, stat.S_IWRITE | stat.S_IREAD)
+                with open(self._NETRC_PATH, 'r') as f:
+                    text = f.read()
+
+                with open(self._NETRC_PATH, 'a') as f:
+                    if not text.endswith('\n') and os.stat(self._NETRC_PATH).st_size != 0:
+                        f.write('\n')
+                    f.write(f'machine urs.earthdata.nasa.gov login {username} password {password}')
+                self._username = username
+                self._password = password
+
+        os.chmod(self._NETRC_PATH, stat.S_IWRITE | stat.S_IREAD)
 
         # This is a macOS thing... need to find path to SSL certificates and set the following environment variables
         ssl_cert_path = certifi.where()
@@ -130,6 +144,14 @@ class BaseAPI:
                     break
 
     def download_time_series(self, queries: List[Tuple[str, str]], outdir: str):
+        """
+        Attempts to create download requests for each query, if that fails then makes each request in series.
+        Args:
+            queries (list): List of tuples containing the remote and local locations for each request
+        Returns:
+            outdir (str)
+
+        """
         # From earthlab firedpy package
         if len(queries) > 0:
             print("Retrieving data...")
@@ -147,6 +169,70 @@ class BaseAPI:
                     print(message)
 
         print(f'Wrote {len(queries)} files to {self._temp_dir if outdir is None else outdir}')
+
+
+class SSM(BaseAPI):
+    """
+
+    """
+    def __init__(self):
+        super().__init__()
+        self._base_url = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GRACEDA/GRACEDADM_CLSM0125US_7D.4.0/'
+        self._temp_dir = os.path.join(self._temp_dir, 'ssm')
+        self._dates = self._retrieve_dates()
+
+    def _retrieve_dates(self) -> List[datetime]:
+        """
+        Finds which dates are available from the server and returns them as a list of datetime objects
+        Returns:
+            (list): List of available dates on the OPeNDAP server in ascending order
+        """
+        date_re = r'\d{4}'
+        links = self.retrieve_links(self._base_url)
+        return sorted([datetime.strptime(link.strip('/'), '%Y') for link in links if re.match(date_re, link) is not
+                       None])
+
+    def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None):
+        """
+        Queries the EarthData site for AIRS Level-3 V6 data in the range of input start and stop
+        Args:
+            t_start (datetime): Start of the query for data. If none, the earliest data set found will be used.
+            Data sets are produced monthly.
+            t_stop (datetime): Stop of the query for data. If none, the latest data set found will be used.
+            Data sets are produced monthly.
+            outdir (str): Path to the output directory where the time series will be written to. The default value is
+            CWD/tmp/evi
+        """
+        os.makedirs(self._temp_dir, exist_ok=True)
+
+        t_start = self._dates[0] if t_start is None else t_start
+        t_stop = self._dates[-1] if t_stop is None else t_stop
+        date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year]
+
+        if not date_range:
+            raise ValueError('There is no data available in the time range requested')
+
+        queries = []
+        nc4_re = r'GRACEDADM\_CLSM0125US\_7D\.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.040\.nc4$'
+        for date in date_range:
+            url = urllib.parse.urljoin(self._base_url, date.strftime('%Y') + '/')
+            files = self.retrieve_links(url)
+
+            for file in files:
+                match = re.match(nc4_re, file)
+
+                if match is not None:
+                    date_objs = match.groupdict()
+                    file_date = datetime(int(date_objs['year']), int(date_objs['month']), int(date_objs['day']))
+
+                    if t_start <= file_date <= t_stop:
+                        remote = urllib.parse.urljoin(url, file)
+                        dest = os.path.join(self._temp_dir if outdir is None else outdir, file)
+                        req = (remote, dest)
+                        if req not in queries:
+                            queries.append(req)
+
+        super().download_time_series(queries, outdir)
 
 
 class VPD(BaseAPI):
