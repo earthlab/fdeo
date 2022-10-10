@@ -1,107 +1,325 @@
 import os
 import certifi
 import unittest
-from unittest import mock
 from unittest.mock import patch
-from pathlib import Path
+from datetime import datetime, timedelta
+import re
+import netCDF4
+from pyhdf.SD import SD
 from fdeo.api import BaseAPI, VPD, SSM, EVI
+
+PROJ_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
 class TestBaseAPI(unittest.TestCase):
-
-    PROJ_DIR = os.path.dirname(os.path.dirname(__file__))
-    TEST_NETRC_PATH = os.path.join(PROJ_DIR, 'tests', '.netrc')
-
-    def setUp(self) -> None:
-        if os.path.exists(self.TEST_NETRC_PATH):
-            os.remove(self.TEST_NETRC_PATH)
-
-    def tearDown(self) -> None:
-        if os.path.exists(self.TEST_NETRC_PATH):
-            os.remove(self.TEST_NETRC_PATH)
-
     def test_initialize_already_configured(self):
         """
         Verify that the base class can be instantiated and the user's credentials are read in properly
         """
-        b = BaseAPI()
+        b = BaseAPI(username='test_user', password='test_user')
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
-        self.assertEqual(os.path.join(self.PROJ_DIR, 'data', 'tmp'), b._temp_dir)
+        self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp'), b._TEMP_DIR)
         self.assertTrue(b._core_count > 0)
-        self.assertEqual(os.path.join(str(Path.home()), '.netrc'), b._NETRC_PATH)
         self.assertEqual(certifi.where(), os.environ['SSL_CERT_FILE'])
         self.assertEqual(certifi.where(), os.environ['REQUESTS_CA_BUNDLE'])
 
     @patch('builtins.input', return_value='test_user')
     @patch('fdeo.api.getpass.getpass', return_value='test_pass')
-    def test_initialize_no_netrc_file(self, user_mock, pass_mock):
+    def test_initialize_blank_cred(self, user_mock, pass_mock):
         """
-        Verify that if there exists no .netrc file at the netrc_path that one is made and the user is queried for their
-        credentials to fill in the file
+        Verify that if the class is not instantiated with credentials then they are queried for
         """
-        self.assertFalse(os.path.exists(self.TEST_NETRC_PATH))
-
-        with mock.patch('fdeo.api.BaseAPI._NETRC_PATH', new_callable=mock.PropertyMock) as mb:
-            mb.return_value = self.TEST_NETRC_PATH
-            b = BaseAPI()
-            self.assertTrue(os.path.exists(self.TEST_NETRC_PATH))
-            self.assertEqual('test_user', b._username)
-            self.assertEqual('test_pass', b._password)
-            with open(self.TEST_NETRC_PATH, 'r') as f:
-                lines = f.readlines()
-                self.assertEqual(1, len(lines))
-                self.assertEqual('machine urs.earthdata.nasa.gov login test_user password test_pass', lines[0])
+        b = BaseAPI()
+        self.assertEqual('test_user', b._username)
+        self.assertEqual('test_pass', b._password)
 
         self.assertEqual(1, user_mock.call_count)
         self.assertEqual(1, pass_mock.call_count)
+
+    def test_retrieve_links(self):
+        """
+        Verify the retrieve links method returns the correct data
+        """
+        b = BaseAPI()
+        links = b.retrieve_links('https://hydro1.gesdisc.eosdis.nasa.gov/data/GRACEDA/GRACEDADM_CLSM0125US_7D.4.0/')
+        self.assertEqual(sorted(['https://www.nasa.gov', 'https://disc.gsfc.nasa.gov/data-access',
+                                 'https://disc.gsfc.nasa.gov/information/howto?title=How%20to%20Download%20Data%20Files'
+                                 '%20from%20HTTPS%20Service%20with%20wget',
+                                 'https://urs.earthdata.nasa.gov/approve_app?client_id=e2WVk8Pw6weeLUKZYOxvTQ',
+                                 '/data/GRACEDA/', '/data/GRACEDA/', '2002/', '2002/', '2003/', '2003/', '2004/',
+                                 '2004/', '2005/', '2005/', '2006/', '2006/', '2007/', '2007/', '2008/', '2008/',
+                                 '2009/', '2009/', '2010/', '2010/', '2011/', '2011/', '2012/', '2012/', '2013/',
+                                 '2013/', '2014/', '2014/', '2015/', '2015/', '2016/', '2016/', '2017/', '2017/',
+                                 '2018/', '2018/', '2019/', '2019/', '2020/', '2020/', '2021/', '2021/', '2022/',
+                                 '2022/', 'GRACEDADM_CLSM0125US_7D.xml', 'GRACEDADM_CLSM0125US_7D.xml',
+                                 'GRACEDADM_CLSM0125US_7D_4.0_dif.xml', 'GRACEDADM_CLSM0125US_7D_4.0_dif.xml',
+                                 'doc/', 'doc/', 'https://www.nasa.gov/about/highlights/HP_Privacy.html',
+                                 'https://disc.gsfc.nasa.gov/contact']), sorted(links))
+
+
+class TestSSMAPI(unittest.TestCase):
+    username = None
+    password = None
+
+    def setUpClass(cls) -> None:
+        cred_path = os.path.join(PROJ_DIR, 'credentials.txt')
+
+        if not os.path.exists(cred_path):
+            print(f'To run the tests please add a file called credentials.txt to {PROJ_DIR} with your NASA EarthData'
+                  f'credentials separated by a newline. If you do not have EarthData credentials you can register for'
+                  f'them at https://urs.earthdata.nasa.gov/users/new')
+
+        with open(cred_path, 'r') as f:
+            lines = f.readlines()
+            cls.username = lines[0]
+            cls.password = lines[1]
+
+    def setUp(self) -> None:
+        if os.path.exists(SSM._TEMP_DIR):
+            for file in os.listdir(SSM._TEMP_DIR):
+                os.remove(os.path.join(SSM._TEMP_DIR, file))
+            os.rmdir(SSM._TEMP_DIR)
+
+    def tearDown(self) -> None:
+        if os.path.exists(SSM._TEMP_DIR):
+            for file in os.listdir(SSM._TEMP_DIR):
+                os.remove(os.path.join(SSM._TEMP_DIR, file))
+            os.rmdir(SSM._TEMP_DIR)
+
+    def test_initialize_already_configured(self):
+        """
+        Verify that the base class can be instantiated and the user's credentials are read in properly
+        """
+        b = SSM(username='test_pass', password='test_pass')
+        self.assertIsNotNone(b._username)
+        self.assertIsNotNone(b._password)
+        self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp', 'ssm'), b._TEMP_DIR)
+        self.assertTrue(b._core_count > 0)
+        self.assertEqual(certifi.where(), os.environ['SSL_CERT_FILE'])
+        self.assertEqual(certifi.where(), os.environ['REQUESTS_CA_BUNDLE'])
 
     @patch('builtins.input', return_value='test_user')
     @patch('fdeo.api.getpass.getpass', return_value='test_pass')
-    def test_initialize_invalid_netrc_file(self, user_mock, pass_mock):
+    def test_initialize_blank_cred(self, user_mock, pass_mock):
         """
-        Verify that if the .netrc file is found but there are no valid earthdata credentials, the user is queried for
-        credentials and these are written to the .netrc file
+        Verify that if the class is not instantiated with credentials then they are queried for
         """
-        with open(self.TEST_NETRC_PATH, 'w+') as f:
-            f.write('testmachine foo.nasa.gov login foo password foo')
-
-        with mock.patch('fdeo.api.BaseAPI._NETRC_PATH', new_callable=mock.PropertyMock) as mb:
-            mb.return_value = self.TEST_NETRC_PATH
-            b = BaseAPI()
-            self.assertEqual('test_user', b._username)
-            self.assertEqual('test_pass', b._password)
-            with open(self.TEST_NETRC_PATH, 'r') as f:
-                lines = f.readlines()
-                self.assertEqual(2, len(lines))
-                self.assertEqual('testmachine foo.nasa.gov login foo password foo\n', lines[0])
-                self.assertEqual('machine urs.earthdata.nasa.gov login test_user password test_pass', lines[1])
+        b = SSM()
+        self.assertEqual('test_user', b._username)
+        self.assertEqual('test_pass', b._password)
 
         self.assertEqual(1, user_mock.call_count)
         self.assertEqual(1, pass_mock.call_count)
+
+    def test_download_time_series(self):
+        """
+        After successful configuration, verify that valid files can be downloaded for a range of time.
+        """
+        b = SSM(username=self.username, password=self.password)
+        self.assertIsNotNone(b._username)
+        self.assertIsNotNone(b._password)
+        self.assertFalse(os.path.exists(b._TEMP_DIR))
+        start_date = datetime(2005, 1, 1)
+        end_date = datetime(2005, 1, 20)
+        b.download_time_series(start_date, end_date)
+        self.assertTrue(os.path.exists(os.path.dirname(b._TEMP_DIR)))
+        self.assertTrue(os.path.exists(b._TEMP_DIR))
+        self.assertTrue(os.listdir(b._TEMP_DIR))
+
+        # Make sure they are valid files and within the time range
+        for file in os.listdir(b._TEMP_DIR):
+            t = netCDF4.Dataset(os.path.join(b._TEMP_DIR, file))
+            self.assertTrue(start_date <= datetime.strptime(t['time'].begin_date, '%Y%M%d') <= end_date)
+            self.assertEqual('GRACE Data Assimilation Drought Indicator', t.title)
+            self.assertEqual('Catchment', t.source)
+            self.assertEqual(sorted(['lat', 'lon', 'time', 'gws_inst', 'rtzsm_inst', 'sfsm_inst']),
+                             sorted(list(t.variables.keys())))
+
+            for var in list(t.variables.keys()):
+                self.assertTrue(len(t[var][:]) > 0)
+
+
+class TestVPDAPI(unittest.TestCase):
+    username = None
+    password = None
+
+    def setUpClass(cls) -> None:
+        cred_path = os.path.join(PROJ_DIR, 'credentials.txt')
+
+        if not os.path.exists(cred_path):
+            print(f'To run the tests please add a file called credentials.txt to {PROJ_DIR} with your NASA EarthData'
+                  f'credentials separated by a newline. If you do not have EarthData credentials you can register for'
+                  f'them at https://urs.earthdata.nasa.gov/users/new')
+
+        with open(cred_path, 'r') as f:
+            lines = f.readlines()
+            cls.username = lines[0]
+            cls.password = lines[1]
+
+    def setUp(self) -> None:
+        if os.path.exists(VPD._TEMP_DIR):
+            for file in os.listdir(VPD._TEMP_DIR):
+                os.remove(os.path.join(VPD._TEMP_DIR, file))
+            os.rmdir(VPD._TEMP_DIR)
+
+    def tearDown(self) -> None:
+        if os.path.exists(VPD._TEMP_DIR):
+            for file in os.listdir(VPD._TEMP_DIR):
+                os.remove(os.path.join(VPD._TEMP_DIR, file))
+            os.rmdir(VPD._TEMP_DIR)
+
+    def test_initialize_already_configured(self):
+        """
+        Verify that the base class can be instantiated and the user's credentials are read in properly
+        """
+        b = VPD(username='test_user', password='test_pass')
+        self.assertIsNotNone(b._username)
+        self.assertIsNotNone(b._password)
+        self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp', 'vpd'), b._TEMP_DIR)
+        self.assertTrue(b._core_count > 0)
+        self.assertEqual(certifi.where(), os.environ['SSL_CERT_FILE'])
+        self.assertEqual(certifi.where(), os.environ['REQUESTS_CA_BUNDLE'])
 
     @patch('builtins.input', return_value='test_user')
     @patch('fdeo.api.getpass.getpass', return_value='test_pass')
-    def test_initialize_blank_netrc_file(self, user_mock, pass_mock):
+    def test_initialize_blank_cred(self, user_mock, pass_mock):
         """
-        Verify that if the .netrc file is found but there are no valid earthdata credentials, the user is queried for
-        credentials and these are written to the .netrc file
+        Verify that if the class is not instantiated with credentials then they are queried for
         """
-        with open(self.TEST_NETRC_PATH, 'w+') as f:
-            f.write('')
-
-        with mock.patch('fdeo.api.BaseAPI._NETRC_PATH', new_callable=mock.PropertyMock) as mb:
-            mb.return_value = self.TEST_NETRC_PATH
-            b = BaseAPI()
-            self.assertEqual('test_user', b._username)
-            self.assertEqual('test_pass', b._password)
-            with open(self.TEST_NETRC_PATH, 'r') as f:
-                lines = f.readlines()
-                self.assertEqual(1, len(lines))
-                self.assertEqual('machine urs.earthdata.nasa.gov login test_user password test_pass', lines[0])
+        b = VPD(username='test_user', password='test_pass')
+        self.assertEqual('test_user', b._username)
+        self.assertEqual('test_pass', b._password)
 
         self.assertEqual(1, user_mock.call_count)
         self.assertEqual(1, pass_mock.call_count)
+
+    def test_download_time_series(self):
+        """
+        After successful configuration, verify that valid files can be downloaded for a range of time.
+        """
+        b = VPD(username=self.username, password=self.password)
+        self.assertIsNotNone(b._username)
+        self.assertIsNotNone(b._password)
+        self.assertFalse(os.path.exists(b._TEMP_DIR))
+        start_date = datetime(2005, 1, 1)
+        end_date = datetime(2005, 1, 30)
+        b.download_time_series(start_date, end_date)
+        self.assertTrue(os.path.exists(os.path.dirname(b._TEMP_DIR)))
+        self.assertTrue(os.path.exists(b._TEMP_DIR))
+        self.assertTrue(os.listdir(b._TEMP_DIR))
+
+        # Make sure they are valid files and within the time range
+        hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetSup_IR0\d{2}\.v6\.0\.9\.0\.G\d{11}\.hdf$'
+        for file in os.listdir(b._TEMP_DIR):
+            t = SD(os.path.join(b._TEMP_DIR, file))
+            match = re.match(hdf_re, file)
+            self.assertTrue(match is not None)
+            g = match.groupdict()
+            file_date = datetime(int(g['year']), int(g['month']), int(g['day']))
+            self.assertTrue(start_date <= file_date <= end_date)
+            self.assertTrue(len(t.datasets().keys()) > 0)
+            for var in list(t.datasets().keys()):
+                self.assertTrue(len(t.select(var).get()) > 0)
+
+
+class TestEVIAPI(unittest.TestCase):
+    username = None
+    password = None
+
+    def setUpClass(cls) -> None:
+        cred_path = os.path.join(PROJ_DIR, 'credentials.txt')
+
+        if not os.path.exists(cred_path):
+            print(f'To run the tests please add a file called credentials.txt to {PROJ_DIR} with your NASA EarthData'
+                  f'credentials separated by a newline. If you do not have EarthData credentials you can register for'
+                  f'them at https://urs.earthdata.nasa.gov/users/new')
+
+        with open(cred_path, 'r') as f:
+            lines = f.readlines()
+            cls.username = lines[0]
+            cls.password = lines[1]
+
+    def setUp(self) -> None:
+        if os.path.exists(EVI._TEMP_DIR):
+            for file in os.listdir(EVI._TEMP_DIR):
+                os.remove(os.path.join(EVI._TEMP_DIR, file))
+            os.rmdir(EVI._TEMP_DIR)
+
+    def tearDown(self) -> None:
+        if os.path.exists(EVI._TEMP_DIR):
+            for file in os.listdir(EVI._TEMP_DIR):
+                os.remove(os.path.join(EVI._TEMP_DIR, file))
+            os.rmdir(EVI._TEMP_DIR)
+
+    def test_initialize_already_configured(self):
+        """
+        Verify that the base class can be instantiated and the user's credentials are read in properly
+        """
+        b = EVI(username='test_user', password='test_pass')
+        self.assertIsNotNone(b._username)
+        self.assertIsNotNone(b._password)
+        self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp', 'evi'), b._TEMP_DIR)
+        self.assertTrue(b._core_count > 0)
+        self.assertEqual(certifi.where(), os.environ['SSL_CERT_FILE'])
+        self.assertEqual(certifi.where(), os.environ['REQUESTS_CA_BUNDLE'])
+
+    @patch('builtins.input', return_value='test_user')
+    @patch('fdeo.api.getpass.getpass', return_value='test_pass')
+    def test_initialize_blank_cred(self, user_mock, pass_mock):
+        """
+        Verify that if the class is not instantiated with credentials then they are queried for
+        """
+        b = EVI(username='test_user', password='test_pass')
+        self.assertEqual('test_user', b._username)
+        self.assertEqual('test_pass', b._password)
+
+        self.assertEqual(1, user_mock.call_count)
+        self.assertEqual(1, pass_mock.call_count)
+
+    def test_download_time_series(self):
+        """
+        After successful configuration, verify that valid files can be downloaded for a range of time.
+        """
+        def parse_dates(sstr):
+            start = False
+            dates = []
+            cs = ''
+            for char in sstr:
+                if start and char == '\"':
+                    start = False
+                    if cs.isnumeric():
+                        dates.append(cs)
+
+                if start and char != '\"':
+                    cs += char
+
+                elif not start and char == '\"':
+                    start = True
+                    cs = ''
+
+            return dates
+
+        b = EVI(username=self.username, password=self.password)
+        self.assertIsNotNone(b._username)
+        self.assertIsNotNone(b._password)
+        self.assertFalse(os.path.exists(b._TEMP_DIR))
+        start_date = datetime(2005, 1, 1)
+        end_date = datetime(2005, 1, 30)
+        b.download_time_series(start_date, end_date)
+        self.assertTrue(os.path.exists(os.path.dirname(b._TEMP_DIR)))
+        self.assertTrue(os.path.exists(b._TEMP_DIR))
+        self.assertTrue(os.listdir(b._TEMP_DIR))
+
+        # Make sure they are valid files and within the time range
+        hdf_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
+        for file in os.listdir(b._TEMP_DIR):
+            t = SD(os.path.join(b._TEMP_DIR, file))
+            d = t.attributes()['ArchiveMetadata.0'].split('DAYSPROCESSED')[1].split("(")[1].split(")")[0].split(",")
+            dates = [datetime.strptime(v.strip('"').strip(' "').strip('\n').strip(' '), '%Y%j') for v in d]
+            self.assertTrue(all(start_date <= date <= end_date + timedelta(days=31) for date in dates))
+            match = re.match(hdf_re, file)
+            self.assertTrue(match is not None)
 
 
 if __name__ == '__main__':

@@ -8,8 +8,8 @@ Created on Thu Jun 30 13:13:16 2022
 import os
 import numpy as np
 from scipy import signal
-from fdeo.functions import data2index, data2index_larger, calc_empirical_distribution
 import matplotlib.pyplot as plt
+from functions import data2index, data2index_larger, calc_plotting_position
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -17,8 +17,6 @@ FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 def main():
     # training period is 2003-2013 ##
     # this part of the code reads input data and creates smoothed climatology of wildfire burned data
-
-    """ SHOULD WE MAKE THE FILES UPLOADABLE SO IT IS EASIER TO ACCESS """
 
     # importing the land cover file (lc1.csv)
     lc1 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'lc1.csv'), delimiter=",")
@@ -83,14 +81,6 @@ def main():
     # the "best" drought indicator (DI) and then creates a historical record of
     # probabilistic and categorical wildfire prediction and observation data
 
-    """
-    
-    define the best DI variable to burned area for each LC type
-    function data2index is used to derive DI of SM and EVI
-    function data2index_larger is used to derive DI of VPD
-    
-    """
-
     # Deciduous DI
     sc_drought = 1  # month range
     deciduous_best_ba = data2index(sm_20032013, sc_drought)
@@ -146,27 +136,24 @@ def main():
         }
     ]
     for lc_co, lc_forecast in enumerate(land_cover_data):
-
         # First build the regression model for the LC Type initial parameters
-        mat = np.empty((2, 242353), dtype=float)  # Initial array
+        mat = np.empty((2, firemon_tot_size.size), dtype=float)  # Initial array
         m = 0  # Burned area for each LC. 1-5 is each diff one
         lead = 1  # Lead time
         for i in range(firemon_tot_size_x):
             for j in range(firemon_tot_size_y):
                 if lc1[i][j] == lc_forecast['index']:
                     for k in range(firemon_tot_size_z):
-
                         # Leave the first 3-month empty to account for 2-month lead model development
                         if k - lead < 1:
                             mat[0][m] = np.nan
-                            m = m + 1
                         else:
                             # Drought index
                             mat[0][m] = lc_forecast['data'][i][j][k - lead]
 
                             # Fire burned area
                             mat[1][m] = firemon_tot_size[i][j][k]
-                            m += 1
+                        m += 1
 
         di_mat = mat[0]
         ba_mat = mat[1]
@@ -220,8 +207,8 @@ def main():
         gofmat1 = np.polyfit(x, y, 2)
 
         # Calculate model and observation values at each bin. Each row represents one LC Type
-        model_res = np.empty((lc_co, 11))
-        obs_res = np.empty((lc_co, 11))
+        model_res = np.empty((lc_co + 1, 11))
+        obs_res = np.empty((lc_co + 1, 11))
         for i in range(len(varbin)):
             # Model at each bin
             model_res[lc_co][i] = gofmat1[1] * (varbin[i] ** 2) + gofmat1[1] * varbin[i] + gofmat1[2]
@@ -285,7 +272,7 @@ def main():
 
     # This section derives CDF of observation and prediction anomalies
     # derive CDF for each land cover type and for each month.
-    # Build probabilisitc prediction and observation matrices
+    # Build probabilistic prediction and observation matrices
     val_new_obs_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
     val_new_pred_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
     obs_split = np.dsplit(fire_obs_ini_cate, 132)
@@ -307,7 +294,7 @@ def main():
             mat = val_new_obs[idx_lc]  # Picks values from val_new_obs that fulfills cond
 
             # Observation CDF
-            y = calc_empirical_distribution(mat)
+            y = calc_plotting_position(mat)
 
             val_new_obs[idx_lc] = y
             val_new_pred[idx_lc] = y
@@ -329,7 +316,7 @@ def main():
 
             # TODO: Make this into a function
             # Observation CDF 33 percentile threshold for observation time series
-            y1 = calc_empirical_distribution(mat)
+            y1 = calc_plotting_position(mat)
             t1 = np.min(y1)
             t2 = np.max(y1)
             t3 = (t2 - t1) / 3
@@ -349,7 +336,7 @@ def main():
 
             # prediction CDF
             # 33 percentile threshold for prediction time series
-            y1 = calc_empirical_distribution(mat1)
+            y1 = calc_plotting_position(mat1)
             t1 = np.min(y1)
             t2 = np.max(y1)
             t3 = (t2 - t1) / 3
@@ -389,33 +376,33 @@ def main():
                             val_new_pred[i][j] <= above_no_pred).all():
                         val_new_pred[i][j] = 0
 
-        # FIG 6 abd 7 of the paper for aug 2013
+    # FIG 6 abd 7 of the paper for aug 2013
 
-        a = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        # August for title of the plot
-        figco = 8
+    a = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    # August for title of the plot
+    figco = 8
 
-        month_o_year = np.arange(0, (np.shape(val_new_pred_tot_1))[2], 11)
-        year = 11
+    month_o_year = np.arange(0, (np.shape(val_new_pred_tot_1))[2], 11)
+    year = 11
 
-        # month to graph histograms
-        mo = month_o_year[year] + 7
+    # month to graph histograms
+    mo = month_o_year[year] + 7
 
-        # plot probabilities of observations
-        val_split = np.dsplit(val_new_obs_tot_1, 132)
-        val = val_split[mo - 1]
-        val = val.reshape((112, 244))
-        # exclude LC types out of the scope of the study
-        for i in range(112):
-            for j in range(244):
-                if (lc1[i][k] != 4) & (lc1[i][j] != 5) & (lc1[i][j] != 7) & (lc1[i][j] != 8) & (lc1[i][j] != 10):
-                    val[i][j] = float("NaN")
+    # plot probabilities of observations
+    val_split = np.dsplit(val_new_obs_tot_1, 132)
+    val = val_split[mo - 1]
+    val = val.reshape((112, 244))
+    # exclude LC types out of the scope of the study
+    for i in range(112):
+        for j in range(244):
+            if (lc1[i][k] != 4) & (lc1[i][j] != 5) & (lc1[i][j] != 7) & (lc1[i][j] != 8) & (lc1[i][j] != 10):
+                val[i][j] = float("NaN")
 
-        val = np.rot90(val.T)
-        fig, (fig1) = plt.subplots(1, 1)
-        fig1.pcolor(val)
-        plt.xlabel(a[figco])
-        plt.show()
+    val = np.rot90(val.T)
+    fig, (fig1) = plt.subplots(1, 1)
+    fig1.pcolor(val)
+    plt.xlabel(a[figco])
+    plt.show()
 
 
 if __name__ == '__main__':

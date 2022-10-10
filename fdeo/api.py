@@ -1,47 +1,45 @@
-import os
-from pathlib import Path
 import getpass
-from typing import Tuple, List
+import os
 import re
-import urllib
-from bs4 import BeautifulSoup
-from datetime import datetime
-from tqdm import tqdm
-from multiprocessing import Pool
 import sys
-import stat
+import urllib
+from datetime import datetime
 from http.cookiejar import CookieJar
+from multiprocessing import Pool
+from typing import Tuple, List
+
 import certifi
 import requests
+from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 
 class BaseAPI:
     """
-    Defines all of the attributes and methods common to the child APIs.
+    Defines all the attributes and methods common to the child APIs.
     """
 
     PROJ_DIR = os.path.dirname(os.path.dirname(__file__))
-    _NETRC_PATH = os.path.join(str(Path.home()), '.netrc')
+    _TEMP_DIR = os.path.join(PROJ_DIR, 'data', 'tmp')
 
-    def __init__(self):
+    def __init__(self, username: str = None, password: str = None):
         """
         Initializes the common attributes required for each data type's API
         """
-        self._username = None
-        self._password = None
-        self._temp_dir = os.path.join(self.PROJ_DIR, 'data', 'tmp')
+        self._username = username
+        self._password = password
         self._core_count = os.cpu_count()
         self._configure()
 
     @staticmethod
     def retrieve_links(url: str) -> List[str]:
         """
-        Creates a list of all of the links found on a webpage
+        Creates a list of all the links found on a webpage
         Args:
             url (str): The URL of the webpage for which you would like a list of links
 
         Returns:
-            (list): All of the links on the input URL's webpage
+            (list): All the links on the input URL's webpage
         """
         request = requests.get(url)
         soup = BeautifulSoup(request.text, 'html.parser')
@@ -64,47 +62,13 @@ class BaseAPI:
 
     def _configure(self) -> None:
         """
-        Checks for the existence of the ~/.netrc file, which should contain the users urs.earthdata.nasa.gov
-        credentials. If this file does not exist or the credentials are missing / misformatted, query the user for
-        their credentials and write them to the file.
+        Queries the user for credentials and configures SSL certificates
         """
-        if not os.path.exists(self._NETRC_PATH):
+        if self._username is None or self._password is None:
             username, password = self._cred_query()
-            with open(self._NETRC_PATH, 'w+') as f:
-                f.write(f'machine urs.earthdata.nasa.gov login {username} password {password}')
+
             self._username = username
             self._password = password
-
-        else:
-            earth_data_re = r'machine urs.earthdata.nasa.gov login (?P<username>.+) password (?P<password>.+)'
-            cred_found = False
-            with open(self._NETRC_PATH, 'r') as f:
-                for line in f.readlines():
-                    match = re.match(earth_data_re, line)
-                    if match is not None:
-                        params = match.groupdict()
-                        print(f'urs.earthdata.nasa.gov credentials found in {self._NETRC_PATH}')
-                        self._username = params['username']
-                        self._password = params['password']
-                        cred_found = True
-                        break
-
-            if not cred_found:
-                print(f'Could not find valid urs.earthdata.nasa.gov credentials at {self._NETRC_PATH} . '
-                      f'Credentials will be written to this file once supplied.')
-                username, password = self._cred_query()
-
-                with open(self._NETRC_PATH, 'r') as f:
-                    text = f.read()
-
-                with open(self._NETRC_PATH, 'a') as f:
-                    if not text.endswith('\n') and os.stat(self._NETRC_PATH).st_size != 0:
-                        f.write('\n')
-                    f.write(f'machine urs.earthdata.nasa.gov login {username} password {password}')
-                self._username = username
-                self._password = password
-
-        os.chmod(self._NETRC_PATH, stat.S_IWRITE | stat.S_IREAD)
 
         # This is a macOS thing... need to find path to SSL certificates and set the following environment variables
         ssl_cert_path = certifi.where()
@@ -168,17 +132,19 @@ class BaseAPI:
                     message = template.format(type(e).__name__, e.args)
                     print(message)
 
-        print(f'Wrote {len(queries)} files to {self._temp_dir if outdir is None else outdir}')
+        print(f'Wrote {len(queries)} files to {self._TEMP_DIR if outdir is None else outdir}')
 
 
 class SSM(BaseAPI):
     """
-
+    Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
+    soil moisture data from the GRACE mission.
     """
-    def __init__(self):
-        super().__init__()
-        self._base_url = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GRACEDA/GRACEDADM_CLSM0125US_7D.4.0/'
-        self._temp_dir = os.path.join(self._temp_dir, 'ssm')
+    _TEMP_DIR = os.path.join(BaseAPI._TEMP_DIR, 'ssm')
+    _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GRACEDA/GRACEDADM_CLSM0125US_7D.4.0/'
+
+    def __init__(self, username: str = None, password: str = None):
+        super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
 
     def _retrieve_dates(self) -> List[datetime]:
@@ -188,7 +154,7 @@ class SSM(BaseAPI):
             (list): List of available dates on the OPeNDAP server in ascending order
         """
         date_re = r'\d{4}'
-        links = self.retrieve_links(self._base_url)
+        links = self.retrieve_links(self._BASE_URL)
         return sorted([datetime.strptime(link.strip('/'), '%Y') for link in links if re.match(date_re, link) is not
                        None])
 
@@ -203,7 +169,7 @@ class SSM(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._temp_dir, exist_ok=True)
+        os.makedirs(self._TEMP_DIR, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
@@ -215,7 +181,7 @@ class SSM(BaseAPI):
         queries = []
         nc4_re = r'GRACEDADM\_CLSM0125US\_7D\.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.040\.nc4$'
         for date in date_range:
-            url = urllib.parse.urljoin(self._base_url, date.strftime('%Y') + '/')
+            url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/')
             files = self.retrieve_links(url)
 
             for file in files:
@@ -227,27 +193,27 @@ class SSM(BaseAPI):
 
                     if t_start <= file_date <= t_stop:
                         remote = urllib.parse.urljoin(url, file)
-                        dest = os.path.join(self._temp_dir if outdir is None else outdir, file)
+                        dest = os.path.join(self._TEMP_DIR if outdir is None else outdir, file)
                         req = (remote, dest)
                         if req not in queries:
                             queries.append(req)
-
         super().download_time_series(queries, outdir)
 
 
 class VPD(BaseAPI):
     """
-    Defines all of the attributes and methods specific to the OPeNDAP API. This API is used to request and download
+    Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
     Level-3 V6 VPD data from the AIRS satellite.
     """
-    def __init__(self):
+    _TEMP_DIR = os.path.join(BaseAPI._TEMP_DIR, 'vpd')
+    _BASE_URL = 'https://acdisc.gesdisc.eosdis.nasa.gov/opendap/Aqua_AIRS_Level3/AIRS3SPM.006/'
+
+    def __init__(self, username: str = None, password: str = None):
         """
         Defines the base URL for Level-3 V6 VPD data and the temporary directory where the requested files will be
         written. Also finds the dates avaialble for request from the server.
         """
-        super().__init__()
-        self._base_url = 'https://acdisc.gesdisc.eosdis.nasa.gov/opendap/Aqua_AIRS_Level3/AIRS3SPM.006/'
-        self._temp_dir = os.path.join(self._temp_dir, 'vpd')
+        super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
 
     def _retrieve_dates(self) -> List[datetime]:
@@ -257,7 +223,7 @@ class VPD(BaseAPI):
             (list): List of available dates on the OPeNDAP server in ascending order
         """
         date_re = r'\d{4}/contents.html'
-        links = self.retrieve_links(self._base_url + 'contents.html')
+        links = self.retrieve_links(self._BASE_URL + 'contents.html')
         return sorted([datetime.strptime(link.strip('/contents.html'), '%Y') for link in links if
                        re.match(date_re, link) is not None])
 
@@ -272,7 +238,7 @@ class VPD(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._temp_dir, exist_ok=True)
+        os.makedirs(self._TEMP_DIR, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
@@ -282,9 +248,9 @@ class VPD(BaseAPI):
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
-        hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetSup_IR030\.v6\.0\.9\.0\.G\d{11}\.hdf\.html$'
+        hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetSup_IR0\d{2}\.v6\.0\.9\.0\.G\d{11}\.hdf\.html$'
         for date in date_range:
-            url = urllib.parse.urljoin(self._base_url, date.strftime('%Y') + '/' + 'contents.html')
+            url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + 'contents.html')
             files = self.retrieve_links(url)
 
             for file in files:
@@ -296,7 +262,7 @@ class VPD(BaseAPI):
 
                     if t_start <= file_date <= t_stop:
                         remote = urllib.parse.urljoin(url, file.strip('.html')).replace('opendap', 'data')
-                        dest = os.path.join(self._temp_dir if outdir is None else outdir, file.strip('.html'))
+                        dest = os.path.join(self._TEMP_DIR if outdir is None else outdir, file.strip('.html'))
                         req = (remote, dest)
                         if req not in queries:
                             queries.append(req)
@@ -306,18 +272,18 @@ class VPD(BaseAPI):
 
 class EVI(BaseAPI):
     """
-    Defines all of the attributes and methods specific to the MODIS API. This API is used to request and download
+    Defines all the attributes and methods specific to the MODIS API. This API is used to request and download
     Enhanced Vegetation Index (EVI) data from the MODIS satellite.
     """
+    _TEMP_DIR = os.path.join(BaseAPI._TEMP_DIR, 'evi')
+    _BASE_URL = 'https://e4ftl01.cr.usgs.gov/MOLT/MOD13C2.006/'
 
-    def __init__(self):
+    def __init__(self, username: str = None, password: str = None):
         """
         Defines the base URL for Enhanced Vegetation Index (EVI) data and the temporary directory where the requested
         files will be written. Also finds the dates available for request from the server.
         """
-        super().__init__()
-        self._base_url = 'https://e4ftl01.cr.usgs.gov/MOLT/MOD13C2.006/'
-        self._temp_dir = os.path.join(self._temp_dir, 'evi')
+        super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
 
     def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None):
@@ -331,7 +297,7 @@ class EVI(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._temp_dir, exist_ok=True)
+        os.makedirs(self._TEMP_DIR, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
@@ -343,12 +309,12 @@ class EVI(BaseAPI):
         queries = []
         hdf_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
         for date in date_range:
-            url = urllib.parse.urljoin(self._base_url, date.strftime('%Y.%m.%d') + '/')
+            url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y.%m.%d') + '/')
             files = self.retrieve_links(url)
             for file in files:
                 if re.match(hdf_re, file) is not None:
                     remote = urllib.parse.urljoin(url, file)
-                    dest = os.path.join(self._temp_dir if outdir is None else outdir, file)
+                    dest = os.path.join(self._TEMP_DIR if outdir is None else outdir, file)
                     queries.append((remote, dest))
 
         super().download_time_series(queries, outdir)
@@ -360,6 +326,6 @@ class EVI(BaseAPI):
             (list): List of available dates on the OPeNDAP server in ascending order
         """
         date_re = r'\d{4}\.\d{2}\.\d{2}'
-        links = self.retrieve_links(self._base_url)
+        links = self.retrieve_links(self._BASE_URL)
         return sorted([datetime.strptime(link.strip('/'), '%Y.%m.%d') for link in links if
                        re.match(date_re, link.strip('/')) is not None])

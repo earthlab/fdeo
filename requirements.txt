@@ -1,0 +1,9 @@
+scipy
+numpy
+matplotlib
+certifi
+requests
+bs4
+tqdm
+netCDF4
+pyhdf
