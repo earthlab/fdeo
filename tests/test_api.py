@@ -16,7 +16,7 @@ class TestBaseAPI(unittest.TestCase):
         """
         Verify that the base class can be instantiated and the user's credentials are read in properly
         """
-        b = BaseAPI(username='test_user', password='test_user')
+        b = BaseAPI(username='test_user', password='test_pass')
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
         self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp'), b._TEMP_DIR)
@@ -41,7 +41,7 @@ class TestBaseAPI(unittest.TestCase):
         """
         Verify the retrieve links method returns the correct data
         """
-        b = BaseAPI()
+        b = BaseAPI(username='test_user', password='test_pass')
         links = b.retrieve_links('https://hydro1.gesdisc.eosdis.nasa.gov/data/GRACEDA/GRACEDADM_CLSM0125US_7D.4.0/')
         self.assertEqual(sorted(['https://www.nasa.gov', 'https://disc.gsfc.nasa.gov/data-access',
                                  'https://disc.gsfc.nasa.gov/information/howto?title=How%20to%20Download%20Data%20Files'
@@ -62,9 +62,9 @@ class TestSSMAPI(unittest.TestCase):
     username = None
     password = None
 
-    def setUpClass(cls) -> None:
+    @classmethod
+    def setUpClass(cls):
         cred_path = os.path.join(PROJ_DIR, 'credentials.txt')
-
         if not os.path.exists(cred_path):
             print(f'To run the tests please add a file called credentials.txt to {PROJ_DIR} with your NASA EarthData'
                   f'credentials separated by a newline. If you do not have EarthData credentials you can register for'
@@ -72,8 +72,10 @@ class TestSSMAPI(unittest.TestCase):
 
         with open(cred_path, 'r') as f:
             lines = f.readlines()
-            cls.username = lines[0]
-            cls.password = lines[1]
+            cls.username = lines[0].strip(' ').strip("\n")
+            cls.password = lines[1].strip(' ').strip("\n")
+
+        return cls
 
     def setUp(self) -> None:
         if os.path.exists(SSM._TEMP_DIR):
@@ -144,7 +146,8 @@ class TestVPDAPI(unittest.TestCase):
     username = None
     password = None
 
-    def setUpClass(cls) -> None:
+    @classmethod
+    def setUpClass(cls):
         cred_path = os.path.join(PROJ_DIR, 'credentials.txt')
 
         if not os.path.exists(cred_path):
@@ -154,8 +157,10 @@ class TestVPDAPI(unittest.TestCase):
 
         with open(cred_path, 'r') as f:
             lines = f.readlines()
-            cls.username = lines[0]
-            cls.password = lines[1]
+            cls.username = lines[0].strip(' ').strip("\n")
+            cls.password = lines[1].strip(' ').strip("\n")
+
+        return cls
 
     def setUp(self) -> None:
         if os.path.exists(VPD._TEMP_DIR):
@@ -187,7 +192,7 @@ class TestVPDAPI(unittest.TestCase):
         """
         Verify that if the class is not instantiated with credentials then they are queried for
         """
-        b = VPD(username='test_user', password='test_pass')
+        b = VPD()
         self.assertEqual('test_user', b._username)
         self.assertEqual('test_pass', b._password)
 
@@ -227,7 +232,8 @@ class TestEVIAPI(unittest.TestCase):
     username = None
     password = None
 
-    def setUpClass(cls) -> None:
+    @classmethod
+    def setUpClass(cls):
         cred_path = os.path.join(PROJ_DIR, 'credentials.txt')
 
         if not os.path.exists(cred_path):
@@ -237,8 +243,10 @@ class TestEVIAPI(unittest.TestCase):
 
         with open(cred_path, 'r') as f:
             lines = f.readlines()
-            cls.username = lines[0]
-            cls.password = lines[1]
+            cls.username = lines[0].strip(' ').strip("\n")
+            cls.password = lines[1].strip(' ').strip("\n")
+
+        return cls
 
     def setUp(self) -> None:
         if os.path.exists(EVI._TEMP_DIR):
@@ -270,7 +278,7 @@ class TestEVIAPI(unittest.TestCase):
         """
         Verify that if the class is not instantiated with credentials then they are queried for
         """
-        b = EVI(username='test_user', password='test_pass')
+        b = EVI()
         self.assertEqual('test_user', b._username)
         self.assertEqual('test_pass', b._password)
 
@@ -281,25 +289,6 @@ class TestEVIAPI(unittest.TestCase):
         """
         After successful configuration, verify that valid files can be downloaded for a range of time.
         """
-        def parse_dates(sstr):
-            start = False
-            dates = []
-            cs = ''
-            for char in sstr:
-                if start and char == '\"':
-                    start = False
-                    if cs.isnumeric():
-                        dates.append(cs)
-
-                if start and char != '\"':
-                    cs += char
-
-                elif not start and char == '\"':
-                    start = True
-                    cs = ''
-
-            return dates
-
         b = EVI(username=self.username, password=self.password)
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
