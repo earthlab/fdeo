@@ -248,7 +248,7 @@ class VPD(BaseAPI):
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
-        hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetSup_IR0\d{2}\.v6\.0\.9\.0\.G\d{11}\.hdf\.html$'
+        hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetSup_IR0\d{2}\.v\d{+}\.d{+}\.d{+}\.d{+}\.G\d{11}\.hdf\.html$'
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + 'contents.html')
             files = self.retrieve_links(url)
