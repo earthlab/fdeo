@@ -82,14 +82,16 @@ class TestSSMAPI(unittest.TestCase):
     def setUp(self) -> None:
         temp_path = tempfile.gettempdir()
         for directory in os.listdir(temp_path):
-            if directory.startswith('fdeo') and os.path.isdir(directory):
-                shutil.rmtree(os.path.join(temp_path, directory))
+            path = os.path.join(temp_path, directory)
+            if directory.startswith('fdeo') and os.path.isdir(path):
+                shutil.rmtree(path)
 
     def tearDown(self) -> None:
         temp_path = tempfile.gettempdir()
         for directory in os.listdir(temp_path):
-            if directory.startswith('fdeo') and os.path.isdir(directory):
-                shutil.rmtree(os.path.join(temp_path, directory))
+            path = os.path.join(temp_path, directory)
+            if directory.startswith('fdeo') and os.path.isdir(path):
+                shutil.rmtree(path)
 
     def test_initialize_already_configured(self):
         """
@@ -164,14 +166,16 @@ class TestVPDAPI(unittest.TestCase):
     def setUp(self) -> None:
         temp_path = tempfile.gettempdir()
         for directory in os.listdir(temp_path):
-            if directory.startswith('fdeo') and os.path.isdir(directory):
-                shutil.rmtree(os.path.join(temp_path, directory))
+            path = os.path.join(temp_path, directory)
+            if directory.startswith('fdeo') and os.path.isdir(path):
+                shutil.rmtree(path)
 
     def tearDown(self) -> None:
         temp_path = tempfile.gettempdir()
         for directory in os.listdir(temp_path):
-            if directory.startswith('fdeo') and os.path.isdir(directory):
-                shutil.rmtree(os.path.join(temp_path, directory))
+            path = os.path.join(temp_path, directory)
+            if directory.startswith('fdeo') and os.path.isdir(path):
+                shutil.rmtree(path)
 
     def test_initialize_already_configured(self):
         """
@@ -247,14 +251,16 @@ class TestEVIAPI(unittest.TestCase):
     def setUp(self) -> None:
         temp_path = tempfile.gettempdir()
         for directory in os.listdir(temp_path):
-            if directory.startswith('fdeo') and os.path.isdir(directory):
-                shutil.rmtree(os.path.join(temp_path, directory))
+            path = os.path.join(temp_path, directory)
+            if directory.startswith('fdeo') and os.path.isdir(path):
+                shutil.rmtree(path)
 
     def tearDown(self) -> None:
         temp_path = tempfile.gettempdir()
         for directory in os.listdir(temp_path):
-            if directory.startswith('fdeo') and os.path.isdir(directory):
-                shutil.rmtree(os.path.join(temp_path, directory))
+            path = os.path.join(temp_path, directory)
+            if directory.startswith('fdeo') and os.path.isdir(path):
+                shutil.rmtree(path)
 
     def test_initialize_already_configured(self):
         """
