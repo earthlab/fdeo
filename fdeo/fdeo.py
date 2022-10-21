@@ -8,6 +8,7 @@ Created on Thu Jun 30 13:13:16 2022
 import os
 import argparse
 import tempfile
+import shutil
 import numpy as np
 from datetime import datetime
 from scipy import signal
@@ -461,13 +462,17 @@ if __name__ == '__main__':
         tempdir = tempfile.mkdtemp(prefix='fdeo')
         start_date = datetime.strptime(args.start_time, "%Y-%m-%d") if args.start_time is not None else None
         end_date = datetime.strptime(args.stop_time, "%Y-%m-%d") if args.stop_time is not None else None
-        ssm_data = os.path.join(tempdir, 'ssm')
-        vpd_data = os.path.join(tempdir, 'vpd')
-        evi_data = os.path.join(tempdir, 'evi')
-        evi.download_time_series(start_date, end_date, outdir=evi_data)
-        vpd.download_time_series(start_date, end_date, outdir=vpd_data)
-        ssm.download_time_series(start_date, end_date, outdir=ssm_data)
+        evi_data = evi.download_time_series(start_date, end_date)
+        vpd_data = vpd.download_time_series(start_date, end_date)
+        ssm_data = ssm.download_time_series(start_date, end_date)
 
         # TODO: Further prepare the data here (parsing, interpolation, concatenation, etc.)
 
     main(evi_data=evi_data, vpd_data=vpd_data, ssm_data=ssm_data)
+
+    if ssm_data is not None:
+        shutil.rmtree(ssm_data)
+    if vpd_data is not None:
+        shutil.rmtree(vpd_data)
+    if evi_data is not None:
+        shutil.rmtree(evi_data)

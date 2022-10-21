@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import urllib
+import tempfile
 from datetime import datetime
 from http.cookiejar import CookieJar
 from multiprocessing import Pool
@@ -18,9 +19,7 @@ class BaseAPI:
     """
     Defines all the attributes and methods common to the child APIs.
     """
-
     PROJ_DIR = os.path.dirname(os.path.dirname(__file__))
-    _TEMP_DIR = os.path.join(PROJ_DIR, 'data', 'tmp')
 
     def __init__(self, username: str = None, password: str = None):
         """
@@ -113,8 +112,7 @@ class BaseAPI:
         Args:
             queries (list): List of tuples containing the remote and local locations for each request
         Returns:
-            outdir (str)
-
+            outdir (str): Path to the output file directory
         """
         # From earthlab firedpy package
         if len(queries) > 0:
@@ -132,7 +130,7 @@ class BaseAPI:
                     message = template.format(type(e).__name__, e.args)
                     print(message)
 
-        print(f'Wrote {len(queries)} files to {self._TEMP_DIR if outdir is None else outdir}')
+        print(f'Wrote {len(queries)} files to {outdir}')
 
 
 class SSM(BaseAPI):
@@ -140,7 +138,6 @@ class SSM(BaseAPI):
     Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
     soil moisture data from the GRACE mission.
     """
-    _TEMP_DIR = os.path.join(BaseAPI._TEMP_DIR, 'ssm')
     _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GRACEDA/GRACEDADM_CLSM0125US_7D.4.0/'
 
     def __init__(self, username: str = None, password: str = None):
@@ -158,7 +155,7 @@ class SSM(BaseAPI):
         return sorted([datetime.strptime(link.strip('/'), '%Y') for link in links if re.match(date_re, link) is not
                        None])
 
-    def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None):
+    def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """
         Queries the EarthData site for AIRS Level-3 V6 data in the range of input start and stop
         Args:
@@ -169,7 +166,10 @@ class SSM(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._TEMP_DIR if outdir is None else outdir, exist_ok=True)
+        if outdir is None:
+            outdir = tempfile.mkdtemp(prefix='fdeo')
+        else:
+            os.makedirs(outdir, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
@@ -193,11 +193,12 @@ class SSM(BaseAPI):
 
                     if t_start <= file_date <= t_stop:
                         remote = urllib.parse.urljoin(url, file)
-                        dest = os.path.join(self._TEMP_DIR if outdir is None else outdir, file)
+                        dest = os.path.join(outdir, file)
                         req = (remote, dest)
                         if req not in queries:
                             queries.append(req)
         super().download_time_series(queries, outdir)
+        return outdir
 
 
 class VPD(BaseAPI):
@@ -205,13 +206,12 @@ class VPD(BaseAPI):
     Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
     Level-3 V6 VPD data from the AIRS satellite.
     """
-    _TEMP_DIR = os.path.join(BaseAPI._TEMP_DIR, 'vpd')
     _BASE_URL = 'https://acdisc.gesdisc.eosdis.nasa.gov/opendap/Aqua_AIRS_Level3/AIRS3SPM.006/'
 
     def __init__(self, username: str = None, password: str = None):
         """
         Defines the base URL for Level-3 V6 VPD data and the temporary directory where the requested files will be
-        written. Also finds the dates avaialble for request from the server.
+        written. Also finds the dates available for request from the server.
         """
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
@@ -227,7 +227,7 @@ class VPD(BaseAPI):
         return sorted([datetime.strptime(link.strip('/contents.html'), '%Y') for link in links if
                        re.match(date_re, link) is not None])
 
-    def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None):
+    def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """
         Queries the EarthData site for AIRS Level-3 V6 data in the range of input start and stop
         Args:
@@ -238,7 +238,10 @@ class VPD(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._TEMP_DIR if outdir is None else outdir, exist_ok=True)
+        if outdir is None:
+            outdir = tempfile.mkdtemp(prefix='fdeo')
+        else:
+            os.makedirs(outdir, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
@@ -262,12 +265,13 @@ class VPD(BaseAPI):
 
                     if t_start <= file_date <= t_stop:
                         remote = urllib.parse.urljoin(url, file.strip('.html')).replace('opendap', 'data')
-                        dest = os.path.join(self._TEMP_DIR if outdir is None else outdir, file.strip('.html'))
+                        dest = os.path.join(outdir, file.strip('.html'))
                         req = (remote, dest)
                         if req not in queries:
                             queries.append(req)
 
         super().download_time_series(queries, outdir)
+        return outdir
 
 
 class EVI(BaseAPI):
@@ -275,7 +279,6 @@ class EVI(BaseAPI):
     Defines all the attributes and methods specific to the MODIS API. This API is used to request and download
     Enhanced Vegetation Index (EVI) data from the MODIS satellite.
     """
-    _TEMP_DIR = os.path.join(BaseAPI._TEMP_DIR, 'evi')
     _BASE_URL = 'https://e4ftl01.cr.usgs.gov/MOLT/MOD13C2.006/'
 
     def __init__(self, username: str = None, password: str = None):
@@ -286,7 +289,7 @@ class EVI(BaseAPI):
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
 
-    def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None):
+    def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """
         Queries the EarthData site for MODIS Enhanced Vegetation Index (EVI) data in the range of input start and stop
         Args:
@@ -297,7 +300,10 @@ class EVI(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._TEMP_DIR if outdir is None else outdir, exist_ok=True)
+        if outdir is None:
+            outdir = tempfile.mkdtemp(prefix='fdeo')
+        else:
+            os.makedirs(outdir, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
@@ -318,6 +324,7 @@ class EVI(BaseAPI):
                     queries.append((remote, dest))
 
         super().download_time_series(queries, outdir)
+        return outdir
 
     def _retrieve_dates(self) -> List[datetime]:
         """

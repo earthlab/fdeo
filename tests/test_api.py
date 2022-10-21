@@ -1,4 +1,7 @@
 import os
+import shutil
+import tempfile
+
 import certifi
 import unittest
 from unittest.mock import patch
@@ -19,7 +22,6 @@ class TestBaseAPI(unittest.TestCase):
         b = BaseAPI(username='test_user', password='test_pass')
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
-        self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp'), b._TEMP_DIR)
         self.assertTrue(b._core_count > 0)
         self.assertEqual(certifi.where(), os.environ['SSL_CERT_FILE'])
         self.assertEqual(certifi.where(), os.environ['REQUESTS_CA_BUNDLE'])
@@ -78,16 +80,16 @@ class TestSSMAPI(unittest.TestCase):
         return cls
 
     def setUp(self) -> None:
-        if os.path.exists(SSM._TEMP_DIR):
-            for file in os.listdir(SSM._TEMP_DIR):
-                os.remove(os.path.join(SSM._TEMP_DIR, file))
-            os.rmdir(SSM._TEMP_DIR)
+        temp_path = tempfile.gettempdir()
+        for directory in os.listdir(temp_path):
+            if directory.startswith('fdeo') and os.path.isdir(directory):
+                shutil.rmtree(os.path.join(temp_path, directory))
 
     def tearDown(self) -> None:
-        if os.path.exists(SSM._TEMP_DIR):
-            for file in os.listdir(SSM._TEMP_DIR):
-                os.remove(os.path.join(SSM._TEMP_DIR, file))
-            os.rmdir(SSM._TEMP_DIR)
+        temp_path = tempfile.gettempdir()
+        for directory in os.listdir(temp_path):
+            if directory.startswith('fdeo') and os.path.isdir(directory):
+                shutil.rmtree(os.path.join(temp_path, directory))
 
     def test_initialize_already_configured(self):
         """
@@ -96,7 +98,6 @@ class TestSSMAPI(unittest.TestCase):
         b = SSM(username='test_pass', password='test_pass')
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
-        self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp', 'ssm'), b._TEMP_DIR)
         self.assertTrue(b._core_count > 0)
         self.assertEqual(certifi.where(), os.environ['SSL_CERT_FILE'])
         self.assertEqual(certifi.where(), os.environ['REQUESTS_CA_BUNDLE'])
@@ -121,17 +122,15 @@ class TestSSMAPI(unittest.TestCase):
         b = SSM(username=self.username, password=self.password)
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
-        self.assertFalse(os.path.exists(b._TEMP_DIR))
         start_date = datetime(2005, 1, 1)
         end_date = datetime(2005, 1, 20)
-        b.download_time_series(start_date, end_date)
-        self.assertTrue(os.path.exists(os.path.dirname(b._TEMP_DIR)))
-        self.assertTrue(os.path.exists(b._TEMP_DIR))
-        self.assertTrue(os.listdir(b._TEMP_DIR))
+        tmp_dir = b.download_time_series(start_date, end_date)
+        self.assertTrue(os.path.exists(tmp_dir))
+        self.assertTrue(os.listdir(tmp_dir))
 
         # Make sure they are valid files and within the time range
-        for file in os.listdir(b._TEMP_DIR):
-            t = netCDF4.Dataset(os.path.join(b._TEMP_DIR, file))
+        for file in os.listdir(tmp_dir):
+            t = netCDF4.Dataset(os.path.join(tmp_dir, file))
             self.assertTrue(start_date <= datetime.strptime(t['time'].begin_date, '%Y%M%d') <= end_date)
             self.assertEqual('GRACE Data Assimilation Drought Indicator', t.title)
             self.assertEqual('Catchment', t.source)
@@ -163,16 +162,16 @@ class TestVPDAPI(unittest.TestCase):
         return cls
 
     def setUp(self) -> None:
-        if os.path.exists(VPD._TEMP_DIR):
-            for file in os.listdir(VPD._TEMP_DIR):
-                os.remove(os.path.join(VPD._TEMP_DIR, file))
-            os.rmdir(VPD._TEMP_DIR)
+        temp_path = tempfile.gettempdir()
+        for directory in os.listdir(temp_path):
+            if directory.startswith('fdeo') and os.path.isdir(directory):
+                shutil.rmtree(os.path.join(temp_path, directory))
 
     def tearDown(self) -> None:
-        if os.path.exists(VPD._TEMP_DIR):
-            for file in os.listdir(VPD._TEMP_DIR):
-                os.remove(os.path.join(VPD._TEMP_DIR, file))
-            os.rmdir(VPD._TEMP_DIR)
+        temp_path = tempfile.gettempdir()
+        for directory in os.listdir(temp_path):
+            if directory.startswith('fdeo') and os.path.isdir(directory):
+                shutil.rmtree(os.path.join(temp_path, directory))
 
     def test_initialize_already_configured(self):
         """
@@ -181,7 +180,6 @@ class TestVPDAPI(unittest.TestCase):
         b = VPD(username='test_user', password='test_pass')
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
-        self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp', 'vpd'), b._TEMP_DIR)
         self.assertTrue(b._core_count > 0)
         self.assertEqual(certifi.where(), os.environ['SSL_CERT_FILE'])
         self.assertEqual(certifi.where(), os.environ['REQUESTS_CA_BUNDLE'])
@@ -206,18 +204,16 @@ class TestVPDAPI(unittest.TestCase):
         b = VPD(username=self.username, password=self.password)
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
-        self.assertFalse(os.path.exists(b._TEMP_DIR))
         start_date = datetime(2005, 1, 1)
         end_date = datetime(2005, 1, 30)
-        b.download_time_series(start_date, end_date)
-        self.assertTrue(os.path.exists(os.path.dirname(b._TEMP_DIR)))
-        self.assertTrue(os.path.exists(b._TEMP_DIR))
-        self.assertTrue(os.listdir(b._TEMP_DIR))
+        tmp_dir = b.download_time_series(start_date, end_date)
+        self.assertTrue(os.path.exists(tmp_dir))
+        self.assertTrue(os.listdir(tmp_dir))
 
         # Make sure they are valid files and within the time range
         hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetSup_IR0\d{2}\.v6\.0\.9\.0\.G\d{11}\.hdf$'
-        for file in os.listdir(b._TEMP_DIR):
-            t = SD(os.path.join(b._TEMP_DIR, file))
+        for file in os.listdir(tmp_dir):
+            t = SD(os.path.join(tmp_dir, file))
             match = re.match(hdf_re, file)
             self.assertTrue(match is not None)
             g = match.groupdict()
@@ -249,16 +245,16 @@ class TestEVIAPI(unittest.TestCase):
         return cls
 
     def setUp(self) -> None:
-        if os.path.exists(EVI._TEMP_DIR):
-            for file in os.listdir(EVI._TEMP_DIR):
-                os.remove(os.path.join(EVI._TEMP_DIR, file))
-            os.rmdir(EVI._TEMP_DIR)
+        temp_path = tempfile.gettempdir()
+        for directory in os.listdir(temp_path):
+            if directory.startswith('fdeo') and os.path.isdir(directory):
+                shutil.rmtree(os.path.join(temp_path, directory))
 
     def tearDown(self) -> None:
-        if os.path.exists(EVI._TEMP_DIR):
-            for file in os.listdir(EVI._TEMP_DIR):
-                os.remove(os.path.join(EVI._TEMP_DIR, file))
-            os.rmdir(EVI._TEMP_DIR)
+        temp_path = tempfile.gettempdir()
+        for directory in os.listdir(temp_path):
+            if directory.startswith('fdeo') and os.path.isdir(directory):
+                shutil.rmtree(os.path.join(temp_path, directory))
 
     def test_initialize_already_configured(self):
         """
@@ -267,7 +263,6 @@ class TestEVIAPI(unittest.TestCase):
         b = EVI(username='test_user', password='test_pass')
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
-        self.assertEqual(os.path.join(PROJ_DIR, 'data', 'tmp', 'evi'), b._TEMP_DIR)
         self.assertTrue(b._core_count > 0)
         self.assertEqual(certifi.where(), os.environ['SSL_CERT_FILE'])
         self.assertEqual(certifi.where(), os.environ['REQUESTS_CA_BUNDLE'])
@@ -292,18 +287,16 @@ class TestEVIAPI(unittest.TestCase):
         b = EVI(username=self.username, password=self.password)
         self.assertIsNotNone(b._username)
         self.assertIsNotNone(b._password)
-        self.assertFalse(os.path.exists(b._TEMP_DIR))
         start_date = datetime(2005, 1, 1)
         end_date = datetime(2005, 1, 30)
-        b.download_time_series(start_date, end_date)
-        self.assertTrue(os.path.exists(os.path.dirname(b._TEMP_DIR)))
-        self.assertTrue(os.path.exists(b._TEMP_DIR))
-        self.assertTrue(os.listdir(b._TEMP_DIR))
+        tmp_dir = b.download_time_series(start_date, end_date)
+        self.assertTrue(os.path.exists(tmp_dir))
+        self.assertTrue(os.listdir(tmp_dir))
 
         # Make sure they are valid files and within the time range
         hdf_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
-        for file in os.listdir(b._TEMP_DIR):
-            t = SD(os.path.join(b._TEMP_DIR, file))
+        for file in os.listdir(tmp_dir):
+            t = SD(os.path.join(tmp_dir, file))
             d = t.attributes()['ArchiveMetadata.0'].split('DAYSPROCESSED')[1].split("(")[1].split(")")[0].split(",")
             dates = [datetime.strptime(v.strip('"').strip(' "').strip('\n').strip(' '), '%Y%j') for v in d]
             self.assertTrue(all(start_date <= date <= end_date + timedelta(days=31) for date in dates))
