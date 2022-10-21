@@ -6,10 +6,12 @@ Created on Thu Jun 30 13:13:16 2022
 @author: lukefanguna
 """
 import os
+import argparse
 import numpy as np
 from scipy import signal
 import matplotlib.pyplot as plt
 from functions import data2index, data2index_larger, calc_plotting_position
+from api import VPD, EVI, SSM
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -406,4 +408,39 @@ def main():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--start_time', type=str, required=False,
+                        help='Begin date in YYYY-MM-DD format of datafiles to be downloaded from API')
+    parser.add_argument('--end_date', type=str, required=False,
+                        help='End date in YYYY-MM-DD format of datafiles to be downloaded from API')
+    parser.add_argument('-u', '--username', type=str, required=False,
+                        help='Username to https://urs.earthdata.nasa.gov/ . '
+                             'Credentials can also be provided by providing a value to --credentials argument')
+    parser.add_argument('-p', '--password', type=str, required=False,
+                        help='Password to https://urs.earthdata.nasa.gov/ . '
+                             'Credentials can also be provided by providing a value to --credentials argument')
+    parser.add_argument('-c', '--credentials', type=str, required=False,
+                        help='Path to file containing username and then password separated by newline for '
+                             'https://urs.earthdata.nasa.gov/ ')
+
+    args = parser.parse_args()
+
+    if args.start_time is not None or args.stop_time is not None:
+        username = args.username
+        password = args.password
+        if args.credentials is not None:
+            with open(args.credentials, 'r') as f:
+                lines = f.readlines()
+                username = lines[0].strip('\n').strip(' ')
+                password = lines[1].strip('\n').strip(' ')
+
+        if args.username is None or args.password is None:
+            raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
+                             ' or -u and -p arguments if you would like to download from the API')
+
+        evi = EVI(username=username, password=password)
+        vpd = VPD(username=username, password=password)
+
+
+
     main()
