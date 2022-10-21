@@ -169,7 +169,7 @@ class SSM(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._TEMP_DIR, exist_ok=True)
+        os.makedirs(self._TEMP_DIR if outdir is None else outdir, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
@@ -238,7 +238,7 @@ class VPD(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._TEMP_DIR, exist_ok=True)
+        os.makedirs(self._TEMP_DIR if outdir is None else outdir, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
@@ -297,7 +297,7 @@ class EVI(BaseAPI):
             outdir (str): Path to the output directory where the time series will be written to. The default value is
             CWD/tmp/evi
         """
-        os.makedirs(self._TEMP_DIR, exist_ok=True)
+        os.makedirs(self._TEMP_DIR if outdir is None else outdir, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop

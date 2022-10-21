@@ -7,7 +7,9 @@ Created on Thu Jun 30 13:13:16 2022
 """
 import os
 import argparse
+import tempfile
 import numpy as np
+from datetime import datetime
 from scipy import signal
 import matplotlib.pyplot as plt
 from functions import data2index, data2index_larger, calc_plotting_position
@@ -16,9 +18,16 @@ from api import VPD, EVI, SSM
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
-def main():
-    # training period is 2003-2013 ##
-    # this part of the code reads input data and creates smoothed climatology of wildfire burned data
+def main(ssm_data: str = None, vpd_data: str = None, evi_data: str = None) -> None:
+    """
+    # TODO: Make this more descriptive
+    Reads input data and creates smoothed climatology of wildfire burned data. Default training period is 2003-2013.
+
+    Args:
+        ssm_data (str): Path to the ssm datafile. Defaults to 2003-2013 dataset.
+        vpd_data (str): Path to the vpd datafile. Defaults to 2003-2013 dataset.
+        evi_data (str): Path to the evi data. Defaults to 2003-2013 dataset.
+    """
 
     # importing the land cover file (lc1.csv)
     lc1 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'lc1.csv'), delimiter=",")
@@ -37,19 +46,24 @@ def main():
     %15: ocean
     """
     # soil moisture (sm) data from 2003-2013
-    sm_20032013 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv'), delimiter=",")
-    sm_20032013 = sm_20032013.reshape((112, 244, 132))
+
+    sm_20032013 = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv') if ssm_data is None else ssm_data, delimiter=","
+    ).reshape((112, 244, 132))
 
     # vapor pressure deficit (vpd) data from 2003-2013
-    vpd_20032013 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv'), delimiter=",")
-    vpd_20032013 = vpd_20032013.reshape((112, 244, 132))
+    vpd_20032013 = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv') if vpd_data is None else vpd_data, delimiter=","
+    ).reshape((112, 244, 132))
 
     # enhanced vegetation index (EVI) data from 2003-2013
-    evi_20032013 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv'), delimiter=",").reshape((112, 244, 132))
+    evi_20032013 = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv') if evi_data is None else evi_data, delimiter=","
+    ).reshape((112, 244, 132))
 
     # Fire data from 2003-2013
-    firemon_tot_size = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'firemon_tot_size.csv'), delimiter=",")
-    firemon_tot_size = firemon_tot_size.reshape((112, 244, 132))
+    firemon_tot_size = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'firemon_tot_size.csv'), delimiter=",").reshape((112, 244, 132))
 
     # calculate the fire climatology for each month
 
@@ -422,9 +436,11 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--credentials', type=str, required=False,
                         help='Path to file containing username and then password separated by newline for '
                              'https://urs.earthdata.nasa.gov/ ')
+    ssm_data = None
+    vpd_data = None
+    evi_data = None
 
     args = parser.parse_args()
-
     if args.start_time is not None or args.stop_time is not None:
         username = args.username
         password = args.password
@@ -440,7 +456,18 @@ if __name__ == '__main__':
 
         evi = EVI(username=username, password=password)
         vpd = VPD(username=username, password=password)
+        ssm = SSM(username=username, password=password)
 
+        tempdir = tempfile.mkdtemp(prefix='fdeo')
+        start_date = datetime.strptime(args.start_time, "%Y-%m-%d") if args.start_time is not None else None
+        end_date = datetime.strptime(args.stop_time, "%Y-%m-%d") if args.stop_time is not None else None
+        ssm_data = os.path.join(tempdir, 'ssm')
+        vpd_data = os.path.join(tempdir, 'vpd')
+        evi_data = os.path.join(tempdir, 'evi')
+        evi.download_time_series(start_date, end_date, outdir=evi_data)
+        vpd.download_time_series(start_date, end_date, outdir=vpd_data)
+        ssm.download_time_series(start_date, end_date, outdir=ssm_data)
 
+        # TODO: Further prepare the data here (parsing, interpolation, concatenation, etc.)
 
-    main()
+    main(evi_data=evi_data, vpd_data=vpd_data, ssm_data=ssm_data)
