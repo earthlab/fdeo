@@ -441,7 +441,7 @@ class EVI(BaseAPI):
 
         dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
 
-        array = np.array(dataset.get()) / 10000
+        array = np.array(dataset.get())
         # Rasterio is going to read this in as uint8 so normalize it now... max value is 10000
 
         tiff_file = self._numpy_array_to_raster(output_tif_file, array, geotransform, 'wgs84')
