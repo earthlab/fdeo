@@ -170,7 +170,7 @@ class BaseAPI:
         return output_raster
 
     def _numpy_array_to_raster(self, output_path: str, numpy_array: np.array, geo_transform,
-                               projection, n_band: int = 1, no_data: int = 15, gdal_data_type: int = gdal.GDT_UInt32):
+                               projection, n_band: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_UInt32):
         """
         Returns a gdal raster data source
         Args:
@@ -442,10 +442,6 @@ class EVI(BaseAPI):
         dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
 
         array = np.array(dataset.get())
-        print(np.max(array))
-        array = array / 10000
-        print(np.max(array))
-        # Rasterio is going to read this in as uint8 so normalize it now... max value is 10000
 
         tiff_file = self._numpy_array_to_raster(output_tif_file, array, geotransform, 'wgs84')
 
@@ -454,10 +450,8 @@ class EVI(BaseAPI):
                 geojson = json.load(f)
             polygon = gpd.GeoDataFrame.from_features(geojson['features'])
 
-            print(src)
-
             # Extract the data using the polygon to create a mask
-            out_image, out_transform = mask(src, polygon.geometry, nodata=src.nodata, crop=True)
+            out_image, out_transform = mask(src, polygon.geometry, crop=True)
 
             print(np.max(out_image))
 
