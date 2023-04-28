@@ -168,7 +168,7 @@ class BaseAPI:
         return output_raster
 
     def _numpy_array_to_raster(self, output_path: str, numpy_array: np.array, geo_transform,
-                               projection, n_band: int = 1, no_data: int = 15, gdal_data_type: int = gdal.GDT_UInt16):
+                               projection, n_band: int = 1, no_data: int = 15, gdal_data_type: int = gdal.GDT_UInt64):
         """
         Returns a gdal raster data source
         Args:
