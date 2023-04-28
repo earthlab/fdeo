@@ -420,6 +420,12 @@ class EVI(BaseAPI):
         lon_min, lat_max, _ = transform.TransformPoint(x_min, y_max)
         lon_max, lat_min, _ = transform.TransformPoint(x_max, y_min)
 
+        print(lon_min, lat_min)
+        print(lon_max, lat_min)
+
+        lon_min, lat_max = -180, 90
+        lon_max, lat_min = 180, -90
+
         # Define the resolution of the raster in degrees
         lon_res = (lon_max - lon_min) / num_cols
         lat_res = (lat_max - lat_min) / num_rows
@@ -439,13 +445,6 @@ class EVI(BaseAPI):
 
         # Open the raster file
         with rasterio.open(tiff_file) as src:
-            # Read the raster data as a numpy array
-            data = src.read()
-
-            # Read the geotransform and projection information
-            transform = src.transform
-            crs = src.crs
-
             # Open the GeoJSON file containing the polygon
             gdf = gpd.read_file(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson'))
 
