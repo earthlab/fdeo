@@ -196,7 +196,7 @@ class BaseAPI:
         if not os.path.exists(output_path):
             raise Exception('Failed to create raster: %s' % output_path)
 
-        return output_raster
+        return output_path
 
 
 class SSM(BaseAPI):
