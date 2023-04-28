@@ -9,6 +9,7 @@ from http.cookiejar import CookieJar
 from multiprocessing import Pool
 from typing import Tuple, List
 
+import json
 import certifi
 import requests
 from bs4 import BeautifulSoup
@@ -444,20 +445,23 @@ class EVI(BaseAPI):
         tiff_file = self._numpy_array_to_raster(output_tif_file, array, geotransform, 'wgs84')
 
         # Open the raster file
-        with rasterio.open(tiff_file) as src:
+        with rasterio.open(tiff_file, encoding='latin-1') as src:
+            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
+                geojson = json.load(f)
+            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
+
+            polygon = polygon.to_crs(src.crs)
+            # Get the extent of the polygon
+            coords = polygon.geometry.bounds.iloc[0]
+            # Extract the data using the polygon to create a mask
+            out_image, out_transform = mask(src, polygon.geometry, nodata=src.nodata, crop=True)
+            # Update the metadata of the output tif file
+            out_meta = src.meta.copy()
+
             # Open the GeoJSON file containing the polygon
-            gdf = gpd.read_file(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson'))
 
-            # Clip the raster to the polygon
-            out_image, out_transform = mask(src, gdf.geometry, crop=True)
-
-        out_meta = src.meta.copy()
-
-        out_meta.update({"driver": "GTiff",
-                         "height": out_image.shape[1],
-                         "width": out_image.shape[2],
-                         "transform": out_transform,
-                         "dtype": 'uint32'})
-
-        with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
-            dest.write(out_image)
+            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
+                             "transform": out_transform, "dtype": 'uint32'})
+            # Write the clipped tif file to disk
+            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+                dest.write(out_image.astype('uint32'))
