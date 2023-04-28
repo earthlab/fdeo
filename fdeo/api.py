@@ -451,6 +451,8 @@ class EVI(BaseAPI):
             # Clip the raster to the polygon
             out_image, out_transform = mask(src, gdf.geometry, crop=True)
 
+        print(out_image)
+
         out_meta = src.meta.copy()
 
         out_meta.update({"driver": "GTiff",
