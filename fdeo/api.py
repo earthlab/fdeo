@@ -463,7 +463,7 @@ class EVI(BaseAPI):
             # Open the GeoJSON file containing the polygon
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'uint32',
+                             "transform": out_transform, "dtype": 'int32',
                              'scale': 1/10000
                              })
             # Write the clipped tif file to disk
