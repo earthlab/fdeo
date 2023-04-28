@@ -450,9 +450,6 @@ class EVI(BaseAPI):
                 geojson = json.load(f)
             polygon = gpd.GeoDataFrame.from_features(geojson['features'])
 
-            polygon = polygon.to_crs('wgs84')
-            # Get the extent of the polygon
-            coords = polygon.geometry.bounds.iloc[0]
             # Extract the data using the polygon to create a mask
             out_image, out_transform = mask(src, polygon.geometry, nodata=src.nodata, crop=True)
             # Update the metadata of the output tif file
