@@ -452,21 +452,20 @@ class EVI(BaseAPI):
             geojson = json.load(f)
         polygon = gpd.GeoDataFrame.from_features(geojson['features'])
         # Get the extent of the polygon
-        minX, minY, maxX, maxY = polygon.bounds
         # Get the GeoTransform of the input tif file
         input_gt = input_ds.GetGeoTransform()
         # Calculate the offset and size of the output tif file
-        x_offset = int((float(minX) - input_gt[0]) / input_gt[1])
-        y_offset = int((float(maxY) - input_gt[3]) / input_gt[5])
-        x_size = int((float(maxX) - float(minX)) / input_gt[1])
-        y_size = int((float(maxY) - float(minY)) / input_gt[5])
+        x_offset = int((polygon.bounds['minx'][0] - input_gt[0]) / input_gt[1])
+        y_offset = int((polygon.bounds['maxy'][0] - input_gt[3]) / input_gt[5])
+        x_size = int((polygon.bounds['maxx'][0] - polygon.bounds['minx'][0]) / input_gt[1])
+        y_size = int((polygon.bounds['maxy'][0] - polygon.bounds['miny'][0]) / input_gt[5])
         # Read the data from the input tif file
         band = input_ds.GetRasterBand(1)
         data = band.ReadAsArray(x_offset, y_offset, x_size, y_size)
         # Create the output tif file
         driver = gdal.GetDriverByName('GTiff')
         output_ds = driver.Create(tiff_file.replace('.tif', '_conus.tif'), x_size, y_size, 1, gdal.GDT_UInt32)
-        output_ds.SetGeoTransform((minX, input_gt[1], 0, maxY, 0, input_gt[5]))
+        output_ds.SetGeoTransform((polygon.bounds['minx'][0], input_gt[1], 0, polygon.bounds['maxy'][0], 0, input_gt[5]))
         output_ds.SetProjection(input_ds.GetProjection())
         # Write the data to the output tif file
         band_out = output_ds.GetRasterBand(1)
