@@ -445,7 +445,6 @@ class EVI(BaseAPI):
 
         # Open the raster file
         with rasterio.open(tiff_file) as src:
-            data = src.read(1, dtype='uint32')
             # Open the GeoJSON file containing the polygon
             gdf = gpd.read_file(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson'))
 
