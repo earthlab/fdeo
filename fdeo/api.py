@@ -457,12 +457,14 @@ class EVI(BaseAPI):
 
             # Update the metadata of the output tif file
             out_meta = src.meta.copy()
+            if 'scale' in out_meta:
+                print('scale', out_meta['scale'])
 
             # Open the GeoJSON file containing the polygon
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
                              "transform": out_transform, "dtype": 'uint32',
-                             #'scale': 1/10000
+                             'scale': 1/10000
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
