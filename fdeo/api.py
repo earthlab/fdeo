@@ -456,10 +456,10 @@ class EVI(BaseAPI):
         # Get the GeoTransform of the input tif file
         input_gt = input_ds.GetGeoTransform()
         # Calculate the offset and size of the output tif file
-        x_offset = int((minX - input_gt[0]) / input_gt[1])
-        y_offset = int((maxY - input_gt[3]) / input_gt[5])
-        x_size = int((maxX - minX) / input_gt[1])
-        y_size = int((maxY - minY) / input_gt[5])
+        x_offset = int((float(minX) - input_gt[0]) / input_gt[1])
+        y_offset = int((float(maxY) - input_gt[3]) / input_gt[5])
+        x_size = int((float(maxX) - float(minX)) / input_gt[1])
+        y_size = int((float(maxY) - float(minY)) / input_gt[5])
         # Read the data from the input tif file
         band = input_ds.GetRasterBand(1)
         data = band.ReadAsArray(x_offset, y_offset, x_size, y_size)
