@@ -452,6 +452,7 @@ class EVI(BaseAPI):
 
             # Extract the data using the polygon to create a mask
             out_image, out_transform = mask(src, polygon.geometry, nodata=src.nodata, crop=True)
+            print(out_image.astype('uint32'))
             # Update the metadata of the output tif file
             out_meta = src.meta.copy()
 
