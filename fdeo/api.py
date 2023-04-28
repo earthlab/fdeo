@@ -433,7 +433,7 @@ class EVI(BaseAPI):
 
         array = np.array(dataset.get())
 
-        tiff_file = self._numpy_array_to_raster(output_tif_file, array, gdal.GeoTransform(geotransform), 'wgs84')
+        tiff_file = self._numpy_array_to_raster(output_tif_file, array, geotransform, 'wgs84')
 
         # Open the raster file
         with rasterio.open(tiff_file) as src:
