@@ -14,6 +14,17 @@ import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
+from osgeo import osr
+import gdal
+import numpy as np
+from pyhdf.SD import SD, SDC
+import rasterio
+from rasterio.mask import mask
+import geopandas as gpd
+
+
+# TODO: Make sure area of interest being requested is only CONUS
+
 
 class BaseAPI:
     """
@@ -131,6 +142,61 @@ class BaseAPI:
                     print(message)
 
         print(f'Wrote {len(queries)} files to {outdir}')
+
+    @staticmethod
+    def _create_raster(output_path: str, columns: int, rows: int, n_band: int = 1,
+                       gdal_data_type: int = gdal.GDT_UInt16,
+                       driver: str = r'GTiff'):
+        """
+        Credit:
+        https://gis.stackexchange.com/questions/290776/how-to-create-a-tiff-file-using-gdal-from-a-numpy-array-and-
+        specifying-nodata-va
+
+        Creates a blank raster for data to be written to
+        Args:
+            output_path (str): Path where the output tif file will be written to
+            columns (int): Number of columns in raster
+            rows (int): Number of rows in raster
+            n_band (int): Number of bands in raster
+            gdal_data_type (int): Data type for data written to raster
+            driver (str): Driver for conversion
+        """
+        # create driver
+        driver = gdal.GetDriverByName(driver)
+
+        output_raster = driver.Create(output_path, columns, rows, n_band, eType=gdal_data_type)
+        return output_raster
+
+    def _numpy_array_to_raster(self, output_path: str, numpy_array: np.array, geo_transform,
+                               projection, n_band: int = 1, no_data: int = 15, gdal_data_type: int = gdal.GDT_UInt16):
+        """
+        Returns a gdal raster data source
+        Args:
+            output_path (str): Full path to the raster to be written to disk
+            numpy_array (np.array): Numpy array containing data to write to raster
+            geo_transform (gdal GeoTransform): tuple of six values that represent the top left corner coordinates, the
+            pixel size in x and y directions, and the rotation of the image
+            n_band (int): The band to write to in the output raster
+            no_data (int): Value in numpy array that should be treated as no data
+            gdal_data_type (int): Gdal data type of raster (see gdal documentation for list of values)
+        """
+        rows, columns = numpy_array.shape
+
+        # create output raster
+        output_raster = self._create_raster(output_path, int(columns), int(rows), n_band, gdal_data_type)
+
+        output_raster.SetProjection(projection)
+        output_raster.SetGeoTransform(geo_transform)
+        output_band = output_raster.GetRasterBand(1)
+        output_band.SetNoDataValue(no_data)
+        output_band.WriteArray(numpy_array)
+        output_band.FlushCache()
+        output_band.ComputeStatistics(False)
+
+        if not os.path.exists(output_path):
+            raise Exception('Failed to create raster: %s' % output_path)
+
+        return output_raster
 
 
 class SSM(BaseAPI):
@@ -336,3 +402,55 @@ class EVI(BaseAPI):
         links = self.retrieve_links(self._BASE_URL)
         return sorted([datetime.strptime(link.strip('/'), '%Y.%m.%d') for link in links if
                        re.match(date_re, link.strip('/')) is not None])
+
+    def _clip_to_conus(self, input_hdf_file: str, output_tif_file: str):
+        x_min, y_max = (-180000000.000000, 90000000.000000)  # meters
+        x_max, y_min = (180000000.000000, -90000000.000000)  # meters
+
+        num_rows = 3600
+        num_cols = 7200
+
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+
+        # Create a transformation object from projected coordinates to lat/lon
+        transform = osr.CoordinateTransformation(srs, srs.CloneGeogCS())
+
+        # Transform the corners of the raster to lat/lon
+        lon_min, lat_max, _ = transform.TransformPoint(x_min, y_max)
+        lon_max, lat_min, _ = transform.TransformPoint(x_max, y_min)
+
+        # Define the resolution of the raster in degrees
+        lon_res = (lon_max - lon_min) / num_cols
+        lat_res = (lat_max - lat_min) / num_rows
+
+        # Define the geotransform array in lat/lon
+        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+
+        hdf_file = SD(input_hdf_file, SDC.READ)
+
+        dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
+
+        array = np.array(dataset.get())
+
+        tiff_file = self._numpy_array_to_raster(output_tif_file, array, gdal.GeoTransform(geotransform), 'wgs84')
+
+        # Open the raster file
+        with rasterio.open(tiff_file) as src:
+            # Read the raster data as a numpy array
+            data = src.read()
+
+            # Read the geotransform and projection information
+            transform = src.transform
+            crs = src.crs
+
+            # Open the GeoJSON file containing the polygon
+            gdf = gpd.read_file(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson'))
+
+            # Clip the raster to the polygon
+            clipped, transform = mask(src, gdf.geometry, crop=True)
+
+        # Write the clipped data to a new TIFF file
+        with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), 'w', driver='GTiff', height=clipped.shape[1],
+                           width=clipped.shape[2], count=1, dtype=clipped.dtype, crs=crs, transform=transform) as dst:
+            dst.write(clipped)
