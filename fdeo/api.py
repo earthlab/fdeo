@@ -449,10 +449,10 @@ class EVI(BaseAPI):
         input_ds = gdal.Open(tiff_file)
         # Load the polygon from the geojson file
         with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
-            geojson = f.read()
-            polygon = ogr.CreateGeometryFromJson(geojson)
+            geojson = json.load(f)
+        polygon = gpd.GeoDataFrame.from_features(geojson['features'])
         # Get the extent of the polygon
-        minX, maxX, minY, maxY = polygon.GetEnvelope()
+        minX, minY, maxX, maxY = polygon.bounds
         # Get the GeoTransform of the input tif file
         input_gt = input_ds.GetGeoTransform()
         # Calculate the offset and size of the output tif file
