@@ -441,33 +441,28 @@ class EVI(BaseAPI):
 
         dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
 
-        array = np.array(dataset.get())
+        array = np.array(dataset.get()) / 10000
+        # Rasterio is going to read this in as uint8 so normalize it now... max value is 10000
 
         tiff_file = self._numpy_array_to_raster(output_tif_file, array, geotransform, 'wgs84')
 
-        # Open the input tif file
-        input_ds = gdal.Open(tiff_file)
-        # Load the polygon from the geojson file
-        with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
-            geojson = json.load(f)
-        polygon = gpd.GeoDataFrame.from_features(geojson['features'])
-        # Get the extent of the polygon
+        with rasterio.open(tiff_file) as src:
+            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
+                geojson = json.load(f)
+            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
 
-        # Calculate the offset and size of the output tif file
-        x_offset = int((polygon.bounds['minx'][0] - geotransform[0]) / geotransform[1])
-        y_offset = int((polygon.bounds['maxy'][0] - geotransform[3]) / geotransform[5])
-        x_size = int((polygon.bounds['maxx'][0] - polygon.bounds['minx'][0]) / geotransform[1])
-        y_size = abs(int((polygon.bounds['maxy'][0] - polygon.bounds['miny'][0]) / geotransform[5]))
-        # Read the data from the input tif file
-        band = input_ds.GetRasterBand(1)
-        data = band.ReadAsArray(x_offset, y_offset, x_size, y_size)
-        # Create the output tif file
-        driver = gdal.GetDriverByName('GTiff')
-        output_ds = driver.Create(tiff_file.replace('.tif', '_conus.tif'), x_size, y_size, 1, gdal.GDT_UInt32)
-        output_ds.SetGeoTransform((polygon.bounds['minx'][0], geotransform[1], 0, polygon.bounds['maxy'][0], 0,
-                                   geotransform[5]))
-        output_ds.SetProjection(input_ds.GetProjection())
-        # Write the data to the output tif file
-        band_out = output_ds.GetRasterBand(1)
-        band_out.WriteArray(data.astype('uint32'))
-        band_out.FlushCache()
+            # Extract the data using the polygon to create a mask
+            out_image, out_transform = mask(src, polygon.geometry, nodata=src.nodata, crop=True)
+
+            # Update the metadata of the output tif file
+            out_meta = src.meta.copy()
+
+            # Open the GeoJSON file containing the polygon
+
+            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
+                             "transform": out_transform, "dtype": 'uint32', 'scale': 1/10000})
+            # Write the clipped tif file to disk
+            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+                dest.write(out_image)
+
+
