@@ -450,6 +450,7 @@ class EVI(BaseAPI):
 
             # Clip the raster to the polygon
             out_image, out_transform = mask(src, gdf.geometry, crop=True)
+            out_image = out_image.data.astype('uint32')
 
         print(out_image)
 
