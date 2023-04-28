@@ -457,7 +457,7 @@ class EVI(BaseAPI):
         x_offset = int((polygon.bounds['minx'][0] - geotransform[0]) / geotransform[1])
         y_offset = int((polygon.bounds['maxy'][0] - geotransform[3]) / geotransform[5])
         x_size = int((polygon.bounds['maxx'][0] - polygon.bounds['minx'][0]) / geotransform[1])
-        y_size = int((polygon.bounds['maxy'][0] - polygon.bounds['miny'][0]) / geotransform[5])
+        y_size = abs(int((polygon.bounds['maxy'][0] - polygon.bounds['miny'][0]) / geotransform[5]))
         # Read the data from the input tif file
         band = input_ds.GetRasterBand(1)
         data = band.ReadAsArray(x_offset, y_offset, x_size, y_size)
