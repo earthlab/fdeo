@@ -445,23 +445,20 @@ class EVI(BaseAPI):
 
         # Open the raster file
         with rasterio.open(tiff_file) as src:
+            data = src.read(1, dtype='uint32')
             # Open the GeoJSON file containing the polygon
             gdf = gpd.read_file(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson'))
 
             # Clip the raster to the polygon
             out_image, out_transform = mask(src, gdf.geometry, crop=True)
-            arr = np.frombuffer(out_image, dtype=np.uint8)
-            new_arr = arr.astype(np.uint32)
-
-
-        print(new_arr)
 
         out_meta = src.meta.copy()
 
         out_meta.update({"driver": "GTiff",
                          "height": out_image.shape[1],
                          "width": out_image.shape[2],
-                         "transform": out_transform})
+                         "transform": out_transform,
+                         "dtype": 'uint32'})
 
         with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
-            dest.write(new_arr)
+            dest.write(out_image)
