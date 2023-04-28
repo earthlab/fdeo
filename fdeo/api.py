@@ -427,6 +427,8 @@ class EVI(BaseAPI):
         # Define the geotransform array in lat/lon
         geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
 
+        print(geotransform)
+
         hdf_file = SD(input_hdf_file, SDC.READ)
 
         dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
@@ -448,9 +450,14 @@ class EVI(BaseAPI):
             gdf = gpd.read_file(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson'))
 
             # Clip the raster to the polygon
-            clipped, transform = mask(src, gdf.geometry, crop=True)
+            out_image, out_transform = mask(src, gdf.geometry, crop=True)
 
-        # Write the clipped data to a new TIFF file
-        with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), 'w', driver='GTiff', height=clipped.shape[1],
-                           width=clipped.shape[2], count=1, dtype=clipped.dtype, crs=crs, transform=transform) as dst:
-            dst.write(clipped)
+        out_meta = src.meta.copy()
+
+        out_meta.update({"driver": "GTiff",
+                         "height": out_image.shape[1],
+                         "width": out_image.shape[2],
+                         "transform": out_transform})
+
+        with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+            dest.write(out_image)
