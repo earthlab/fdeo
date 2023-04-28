@@ -450,7 +450,7 @@ class EVI(BaseAPI):
                 geojson = json.load(f)
             polygon = gpd.GeoDataFrame.from_features(geojson['features'])
 
-            polygon = polygon.to_crs(src.crs)
+            polygon = polygon.to_crs('wgs84')
             # Get the extent of the polygon
             coords = polygon.geometry.bounds.iloc[0]
             # Extract the data using the polygon to create a mask
