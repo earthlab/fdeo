@@ -384,6 +384,79 @@ class VPD(BaseAPI):
         super().download_time_series(queries, outdir)
         return outdir
 
+    def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
+        num_rows = 180
+        num_cols = 360
+
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+
+        lon_min, lat_max = -180, 90
+        lon_max, lat_min = 180, -90
+
+        # Define the resolution of the raster in degrees
+        lon_res = (lon_max - lon_min) / num_cols
+        lat_res = (lat_max - lat_min) / num_rows
+
+        # Define the geotransform array in lat/lon
+        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+
+        print(geotransform)
+
+        tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
+
+        with rasterio.open(tiff_file) as src:
+            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
+                geojson = json.load(f)
+            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
+
+            # Extract the data using the polygon to create a mask
+            out_image, out_transform = mask(src, polygon.geometry, nodata=0, crop=True)
+
+            # Update the metadata of the output tif file
+            out_meta = src.meta.copy()
+
+            # Open the GeoJSON file containing the polygon
+
+            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
+                             "transform": out_transform, "dtype": 'int32'
+                             })
+            # Write the clipped tif file to disk
+            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+                dest.write(out_image)
+
+    @staticmethod
+    def calculate_vpd(vpd_file: str):
+        vpd = SD(vpd_file, SDC.READ)
+        rel_hum = np.clip(vpd.select('RelHumSurf_A').get(), a_min=0, a_max=None)
+        surf_temp = vpd.select('SurfAirTemp_A').get() - 273.15
+
+        a = (17.625 * surf_temp) / (243.04 + surf_temp)
+        b = (17.625 - np.log(rel_hum / 100) - (17.625 * surf_temp)) / (243.04 + surf_temp)
+        td = 243.04 * (np.log(rel_hum / 100) + a) / b
+        vpd = 0.611 * np.exp((17.5 * surf_temp) / (240.978 + surf_temp)) - (
+                    0.611 * np.exp((17.5 * td) / (240.978 + td)))
+
+        return vpd
+
+    def create_stacked_time_series(self, output_tiff_file: str, t_start: datetime = None, t_stop: datetime = None):
+        time_series_dir = self.download_time_series(t_start, t_stop)
+
+        arrays = []
+        for file in os.listdir(time_series_dir):
+            vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
+            arrays.append(vpd_array)
+
+        stacked_arrays = np.vstack(arrays)
+
+        # TODO: Up sample to 0.25 deg resolution
+
+        self._clip_to_conus(stacked_arrays, output_tiff_file)
+
+        shutil.rmtree(time_series_dir)
+
+
+
 
 class EVI(BaseAPI):
     """
