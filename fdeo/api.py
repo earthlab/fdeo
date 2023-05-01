@@ -420,7 +420,7 @@ class VPD(BaseAPI):
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
                              "transform": out_transform, "dtype": 'int32',
-                             "scale": 100000
+                             "scale": 1/100000
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
