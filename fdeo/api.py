@@ -448,7 +448,7 @@ class VPD(BaseAPI):
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
             arrays.append(vpd_array)
 
-        stacked_arrays = np.vstack(arrays)
+        stacked_arrays = np.stack(arrays, axis=2)
 
         print(stacked_arrays.shape)
 
