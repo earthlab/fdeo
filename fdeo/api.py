@@ -1,6 +1,7 @@
 import getpass
 import os
 import re
+import shutil
 import sys
 import urllib
 import tempfile
@@ -200,10 +201,7 @@ class BaseAPI:
 
         return output_path
 
-    def _clip_to_conus(self, input_hdf_file: str, output_tif_file: str):
-        x_min, y_max = (-180000000.000000, 90000000.000000)  # meters
-        x_max, y_min = (180000000.000000, -90000000.000000)  # meters
-
+    def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 3600
         num_cols = 7200
 
@@ -222,13 +220,7 @@ class BaseAPI:
 
         print(geotransform)
 
-        hdf_file = SD(input_hdf_file, SDC.READ)
-
-        dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
-
-        array = np.array(dataset.get())
-
-        tiff_file = self._numpy_array_to_raster(output_tif_file, array, geotransform, 'wgs84')
+        tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
 
         with rasterio.open(tiff_file) as src:
             with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
@@ -455,3 +447,38 @@ class EVI(BaseAPI):
         links = self.retrieve_links(self._BASE_URL)
         return sorted([datetime.strptime(link.strip('/'), '%Y.%m.%d') for link in links if
                        re.match(date_re, link.strip('/')) is not None])
+
+    @staticmethod
+    def _down_sample(input_array: np.array) -> np.array:
+        # Calculate the number of rows and columns in the downsampled array
+        rows = input_array.shape[0] // 5
+        cols = input_array.shape[1] // 5
+
+        # Create an empty array to hold the downsampled values
+        output_array = np.zeros((rows, cols))
+
+        # Loop over the down sampled array and populate with the average of the 0.05 x 0.05 degree pixels
+        for i in range(rows):
+            for j in range(cols):
+                output_array[i, j] = np.mean(output_array[5 * i:5 * (i + 1), 5 * j:5 * (j + 1)])
+
+        return output_array
+
+    def create_stacked_time_series(self, output_tiff_file: str, t_start: datetime = None, t_stop: datetime = None):
+        time_series_dir = self.download_time_series(t_start, t_stop)
+
+        arrays = []
+        for file in os.listdir(time_series_dir):
+            hdf_file = SD(os.path.join(time_series_dir, file), SDC.READ)
+
+            dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
+
+            arrays.append(np.array(dataset.get()))
+
+        stacked_arrays = np.vstack(arrays)
+
+        down_sampled_array = self._down_sample(stacked_arrays)
+
+        self._clip_to_conus(down_sampled_array, output_tiff_file)
+
+        shutil.rmtree(time_series_dir)
