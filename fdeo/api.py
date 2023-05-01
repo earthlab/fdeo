@@ -429,7 +429,7 @@ class VPD(BaseAPI):
     @staticmethod
     def calculate_vpd(vpd_file: str):
         vpd = SD(vpd_file, SDC.READ)
-        rel_hum = np.clip(vpd.select('RelHumSurf_A').get(), a_min=1, a_max=None)
+        rel_hum = np.clip(vpd.select('RelHumSurf_A').get(), a_min=0, a_max=None)
         surf_temp = vpd.select('SurfAirTemp_A').get() - 273.15
 
         a = (17.625 * surf_temp) / (243.04 + surf_temp)
