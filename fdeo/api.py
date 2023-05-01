@@ -335,7 +335,7 @@ class VPD(BaseAPI):
     Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
     Level-3 V6 VPD data from the AIRS satellite.
     """
-    _BASE_URL = 'https://acdisc.gesdisc.eosdis.nasa.gov/opendap/Aqua_AIRS_Level3/AIRS3SPM.006/'
+    _BASE_URL = 'https://acdisc.gesdisc.eosdis.nasa.gov/opendap/Aqua_AIRS_Level3/AIRS3STD.006/'
 
     def __init__(self, username: str = None, password: str = None):
         """
@@ -380,7 +380,7 @@ class VPD(BaseAPI):
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
-        hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetSup_IR\d{3}\.v\d+\.\d+\.\d+\.\d+\.G\d{11}\.hdf\.html$'
+        hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetStd_IR\d{3}\.v\d+\.\d+\.\d+\.\d+\.G\d{11}\.hdf\.html$'
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + 'contents.html')
             files = self.retrieve_links(url)
