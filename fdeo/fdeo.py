@@ -423,6 +423,7 @@ def main(ssm_data: str = None, vpd_data: str = None, evi_data: str = None) -> No
 
 
 if __name__ == '__main__':
+    # TODO: Add option to input existing csv file other than default
     parser = argparse.ArgumentParser()
     parser.add_argument('--start_time', type=str, required=False,
                         help='Begin date in YYYY-MM-DD format of datafiles to be downloaded from API')

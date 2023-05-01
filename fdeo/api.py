@@ -200,6 +200,67 @@ class BaseAPI:
 
         return output_path
 
+    def _clip_to_conus(self, input_hdf_file: str, output_tif_file: str):
+        x_min, y_max = (-180000000.000000, 90000000.000000)  # meters
+        x_max, y_min = (180000000.000000, -90000000.000000)  # meters
+
+        num_rows = 3600
+        num_cols = 7200
+
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+
+        # Create a transformation object from projected coordinates to lat/lon
+        transform = osr.CoordinateTransformation(srs, srs.CloneGeogCS())
+
+        # Transform the corners of the raster to lat/lon
+        lon_min, lat_max, _ = transform.TransformPoint(x_min, y_max)
+        lon_max, lat_min, _ = transform.TransformPoint(x_max, y_min)
+
+        print(lon_min, lat_min)
+        print(lon_max, lat_min)
+
+        lon_min, lat_max = -180, 90
+        lon_max, lat_min = 180, -90
+
+        # Define the resolution of the raster in degrees
+        lon_res = (lon_max - lon_min) / num_cols
+        lat_res = (lat_max - lat_min) / num_rows
+
+        # Define the geotransform array in lat/lon
+        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+
+        print(geotransform)
+
+        hdf_file = SD(input_hdf_file, SDC.READ)
+
+        dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
+
+        array = np.array(dataset.get())
+
+        tiff_file = self._numpy_array_to_raster(output_tif_file, array, geotransform, 'wgs84')
+
+        with rasterio.open(tiff_file) as src:
+            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
+                geojson = json.load(f)
+            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
+
+            # Extract the data using the polygon to create a mask
+            out_image, out_transform = mask(src, polygon.geometry, nodata=0, crop=True)
+
+            # Update the metadata of the output tif file
+            out_meta = src.meta.copy()
+
+            # Open the GeoJSON file containing the polygon
+
+            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
+                             "transform": out_transform, "dtype": 'int32',
+                             'scale': 1/10000
+                             })
+            # Write the clipped tif file to disk
+            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+                dest.write(out_image)
+
 
 class SSM(BaseAPI):
     """
@@ -404,70 +465,3 @@ class EVI(BaseAPI):
         links = self.retrieve_links(self._BASE_URL)
         return sorted([datetime.strptime(link.strip('/'), '%Y.%m.%d') for link in links if
                        re.match(date_re, link.strip('/')) is not None])
-
-    def _clip_to_conus(self, input_hdf_file: str, output_tif_file: str):
-        x_min, y_max = (-180000000.000000, 90000000.000000)  # meters
-        x_max, y_min = (180000000.000000, -90000000.000000)  # meters
-
-        num_rows = 3600
-        num_cols = 7200
-
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-
-        # Create a transformation object from projected coordinates to lat/lon
-        transform = osr.CoordinateTransformation(srs, srs.CloneGeogCS())
-
-        # Transform the corners of the raster to lat/lon
-        lon_min, lat_max, _ = transform.TransformPoint(x_min, y_max)
-        lon_max, lat_min, _ = transform.TransformPoint(x_max, y_min)
-
-        print(lon_min, lat_min)
-        print(lon_max, lat_min)
-
-        lon_min, lat_max = -180, 90
-        lon_max, lat_min = 180, -90
-
-        # Define the resolution of the raster in degrees
-        lon_res = (lon_max - lon_min) / num_cols
-        lat_res = (lat_max - lat_min) / num_rows
-
-        # Define the geotransform array in lat/lon
-        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
-
-        print(geotransform)
-
-        hdf_file = SD(input_hdf_file, SDC.READ)
-
-        dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
-
-        array = np.array(dataset.get())
-
-        tiff_file = self._numpy_array_to_raster(output_tif_file, array, geotransform, 'wgs84')
-
-        with rasterio.open(tiff_file) as src:
-            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
-                geojson = json.load(f)
-            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
-
-            # Extract the data using the polygon to create a mask
-            out_image, out_transform = mask(src, polygon.geometry, crop=True)
-
-            print(np.max(out_image))
-
-            # Update the metadata of the output tif file
-            out_meta = src.meta.copy()
-            if 'scale' in out_meta:
-                print('scale', out_meta['scale'])
-
-            # Open the GeoJSON file containing the polygon
-
-            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'int32',
-                             'scale': 1/10000
-                             })
-            # Write the clipped tif file to disk
-            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
-                dest.write(out_image)
-
-
