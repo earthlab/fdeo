@@ -419,7 +419,8 @@ class VPD(BaseAPI):
             # Open the GeoJSON file containing the polygon
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'int32'
+                             "transform": out_transform, "dtype": 'int32',
+                             "scale": 100000
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
@@ -449,13 +450,15 @@ class VPD(BaseAPI):
 
         stacked_arrays = np.vstack(arrays)
 
+        print(stacked_arrays.shape)
+
+        stacked_arrays = stacked_arrays * 100000
+
         # TODO: Up sample to 0.25 deg resolution
 
         self._clip_to_conus(stacked_arrays, output_tiff_file)
 
         shutil.rmtree(time_series_dir)
-
-
 
 
 class EVI(BaseAPI):
