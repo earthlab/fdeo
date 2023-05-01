@@ -183,7 +183,7 @@ class BaseAPI:
             no_data (int): Value in numpy array that should be treated as no data
             gdal_data_type (int): Gdal data type of raster (see gdal documentation for list of values)
         """
-        rows, columns = numpy_array.shape
+        rows, columns, _ = numpy_array.shape
 
         # create output raster
         output_raster = self._create_raster(output_path, int(columns), int(rows), n_band, gdal_data_type)
