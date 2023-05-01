@@ -210,16 +210,6 @@ class BaseAPI:
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(4326)
 
-        # Create a transformation object from projected coordinates to lat/lon
-        transform = osr.CoordinateTransformation(srs, srs.CloneGeogCS())
-
-        # Transform the corners of the raster to lat/lon
-        lon_min, lat_max, _ = transform.TransformPoint(x_min, y_max)
-        lon_max, lat_min, _ = transform.TransformPoint(x_max, y_min)
-
-        print(lon_min, lat_min)
-        print(lon_max, lat_min)
-
         lon_min, lat_max = -180, 90
         lon_max, lat_min = 180, -90
 
@@ -335,7 +325,7 @@ class VPD(BaseAPI):
     Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
     Level-3 V6 VPD data from the AIRS satellite.
     """
-    _BASE_URL = 'https://acdisc.gesdisc.eosdis.nasa.gov/opendap/Aqua_AIRS_Level3/AIRS3STD.006/'
+    _BASE_URL = 'https://acdisc.gesdisc.eosdis.nasa.gov/opendap/Aqua_AIRS_Level3/AIRS3STM.7.0/'
 
     def __init__(self, username: str = None, password: str = None):
         """
