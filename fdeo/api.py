@@ -183,7 +183,7 @@ class BaseAPI:
             no_data (int): Value in numpy array that should be treated as no data
             gdal_data_type (int): Gdal data type of raster (see gdal documentation for list of values)
         """
-        rows, columns, _ = numpy_array.shape
+        rows, columns = numpy_array.shape
 
         # create output raster
         output_raster = self._create_raster(output_path, int(columns), int(rows), n_band, gdal_data_type)
@@ -429,7 +429,7 @@ class VPD(BaseAPI):
     @staticmethod
     def calculate_vpd(vpd_file: str):
         vpd = SD(vpd_file, SDC.READ)
-        rel_hum = np.clip(vpd.select('RelHumSurf_A').get(), a_min=0, a_max=None)
+        rel_hum = np.clip(vpd.select('RelHumSurf_A').get(), a_min=1, a_max=None)
         surf_temp = vpd.select('SurfAirTemp_A').get() - 273.15
 
         a = (17.625 * surf_temp) / (243.04 + surf_temp)
@@ -440,23 +440,19 @@ class VPD(BaseAPI):
 
         return vpd
 
-    def create_stacked_time_series(self, output_tiff_file: str, t_start: datetime = None, t_stop: datetime = None):
+    def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
         time_series_dir = self.download_time_series(t_start, t_stop)
 
-        arrays = []
         for file in os.listdir(time_series_dir):
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
-            arrays.append(vpd_array)
 
-        stacked_arrays = np.stack(arrays, axis=2)
+            vpd_array = vpd_array * 100000
 
-        print(stacked_arrays.shape)
+            # TODO: Up sample to 0.25 deg resolution
 
-        stacked_arrays = stacked_arrays * 100000
+            output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
-        # TODO: Up sample to 0.25 deg resolution
-
-        self._clip_to_conus(stacked_arrays, output_tiff_file)
+            self._clip_to_conus(vpd_array, output_tiff_file)
 
         shutil.rmtree(time_series_dir)
 
