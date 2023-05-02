@@ -453,11 +453,10 @@ if __name__ == '__main__':
         if args.credentials is not None:
             with open(args.credentials, 'r') as f:
                 lines = f.readlines()
-                print(lines)
                 username = lines[0].strip('\n').strip(' ')
                 password = lines[1].strip('\n').strip(' ')
 
-        if args.username is None or args.password is None:
+        if username is None or password is None:
             raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
                              ' or -u and -p arguments if you would like to download from the API')
 
