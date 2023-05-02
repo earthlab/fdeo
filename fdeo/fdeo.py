@@ -453,6 +453,7 @@ if __name__ == '__main__':
         if args.credentials is not None:
             with open(args.credentials, 'r') as f:
                 lines = f.readlines()
+                print(lines)
                 username = lines[0].strip('\n').strip(' ')
                 password = lines[1].strip('\n').strip(' ')
 
