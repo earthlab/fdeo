@@ -227,12 +227,10 @@ class SSM(BaseAPI):
         years = self.retrieve_links(self._BASE_URL)
         links = []
         for year in years:
-            print(year)
             if re.match(year_re, year):
                 months = self.retrieve_links(os.path.join(self._BASE_URL, year))
                 for month in months:
                     if re.match(month_re, month):
-                        print(os.path.join(year, month))
                         links.append(os.path.join(year, month))
 
         return sorted(list(set([datetime.strptime(link, '%Y/%m/') for link in links if re.match(date_re, link) is not
