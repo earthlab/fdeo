@@ -45,6 +45,7 @@ class BaseAPI:
         self._core_count = os.cpu_count()
         self._configure()
         self._file_re = None
+        self._tif_re = None
 
     @staticmethod
     def retrieve_links(url: str) -> List[str]:
@@ -203,10 +204,10 @@ class BaseAPI:
 
         return output_path
 
-    def sort_files(self, input_dir: str):
+    def sort_tif_files(self, input_dir: str):
         group_dicts = []
         for file in os.listdir(input_dir):
-            match = re.match(self._file_re, file)
+            match = re.match(self._tif_re, file)
             if match:
                 group_dicts.append((os.path.join(input_dir, file), match.groupdict()))
 
@@ -225,6 +226,7 @@ class SSM(BaseAPI):
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
         self._file_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
+        self._tif_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.tif$'
 
     def _retrieve_dates(self) -> List[datetime]:
         """
@@ -380,6 +382,7 @@ class VPD(BaseAPI):
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
         self._file_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetStd_IR\d{3}\.v\d+\.\d+\.\d+\.\d+\.G\d{11}\.hdf\.html$'
+        self._tif_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetStd_IR\d{3}\.v\d+\.\d+\.\d+\.\d+\.G\d{11}\.tif$'
 
     def _retrieve_dates(self) -> List[datetime]:
         """
@@ -519,6 +522,7 @@ class EVI(BaseAPI):
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
         self._file_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
+        self._tif_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.tif$'
 
     def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """

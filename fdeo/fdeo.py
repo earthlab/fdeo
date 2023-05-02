@@ -15,7 +15,7 @@ from scipy import signal
 import matplotlib.pyplot as plt
 from functions import data2index, data2index_larger, calc_plotting_position
 from api import VPD, EVI, SSM
-from utils import fix_resolution_and_stack
+from utils import fix_resolution_and_stack, stack_arrays
 from osgeo import gdal
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -480,21 +480,22 @@ if __name__ == '__main__':
         # Sample the EVI and VPD data to the SSM 0.25 deg spatial resolution
         ssm_sample_file = os.listdir(ssm_dir)[0]
 
-        sorted_evi_files = evi.sort_files(evi_dir)
-        sorted_vpd_files = vpd.sort_files(vpd_dir)
+        sorted_evi_files = evi.sort_tif_files(evi_dir)
+        sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
 
         print(sorted_evi_files)
         print(sorted_vpd_files)
-        print(ssm.sort_files(ssm_dir))
+        print(ssm.sort_tif_files(ssm_dir))
 
         stacked_evi_data = fix_resolution_and_stack(sorted_evi_files, ssm_sample_file)
         stacked_vpd_data = fix_resolution_and_stack(sorted_vpd_files, ssm_sample_file)
 
         ssm_month_data = []
-        for ssm_file in ssm.sort_files(ssm_dir):
+        for ssm_file in ssm.sort_tif_files(ssm_dir):
             ssm_file_obj = gdal.Open(ssm_file)
             ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray())
-        stacked_ssm_data = np.stack(ssm_month_data, axis=2)
+
+        stacked_ssm_data = stack_arrays(ssm_month_data)
 
         print(stacked_ssm_data.shape)
         print(stacked_evi_data.shape)
