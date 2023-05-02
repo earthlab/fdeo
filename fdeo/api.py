@@ -225,6 +225,7 @@ class SSM(BaseAPI):
         years = self.retrieve_links(self._BASE_URL)
         links = []
         for year in years:
+            print(os.path.join(self._BASE_URL, year) + '/')
             months = self.retrieve_links(os.path.join(self._BASE_URL, year) + '/')
             for month in months:
                 links.append(os.path.join(year, month))
