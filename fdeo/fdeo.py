@@ -127,6 +127,8 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     print('Fireman tot sizes', firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z)
 
     # Set initial dimensions of prediction probabilistic matrix
+    # TODO: EV: This is what is actually used to hold the results. Need to change dimensions of this to fit the
+    #  input data dimensions
     fire_pred_ini = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
 
     # List of land-cover IDs according to below
@@ -234,7 +236,10 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
         obs_res = np.empty((lc_co + 1, 11))
         for i in range(len(varbin)):
             # Model at each bin
-            model_res[lc_co][i] = gofmat1[1] * (varbin[i] ** 2) + gofmat1[1] * varbin[i] + gofmat1[2]
+            # TODO: EV: Not using highest power (0 index of gofmat1) coefficient with quadratic term
+            # TODO: EV: Why is this being done. A curve fit to (x, y) data is being used to find new y points with the
+            #  same x's??
+            model_res[lc_co][i] = gofmat1[0] * (varbin[i] ** 2) + gofmat1[1] * varbin[i] + gofmat1[2]
 
             # Observation at each bin
             obs_res[lc_co][i] = prob[i]
@@ -243,6 +248,7 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
         del y
 
         # Now build a historical forecast matrix based on the developed regression model for each LC Type
+        # TODO: Change these ranges to fit input data
         for k in range(4, firemon_tot_size_z):
             for i in range(firemon_tot_size_x):
                 for j in range(firemon_tot_size_y):
@@ -285,7 +291,7 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     fire_obs_ini_cate = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
 
     obs_ini_split = np.dsplit(fire_obs_ini, 11)
-    pred_ini_split = np.dsplit(fire_pred_ini, 11)
+    pred_ini_split = np.dsplit(fire_pred_ini, 11)  # TODO: Change these to fit the number of input years
     for i in range(11):
         np.append(fire_obs_ini_cate, obs_ini_split[i] - firemon_tot_size_climatology_smoothed_3, axis=2)
         np.append(fire_pred_ini_cate, pred_ini_split[i] - firemon_tot_size_climatology_smoothed_3, axis=2)
@@ -299,7 +305,7 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     val_new_obs_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
     val_new_pred_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
     obs_split = np.dsplit(fire_obs_ini_cate, 132)
-    pred_split = np.dsplit(fire_pred_ini_cate, 132)
+    pred_split = np.dsplit(fire_pred_ini_cate, 132)  # TODO: Change this to fit number of input months
     dimensions = np.shape(fire_pred_ini_cate)
 
     for k in range(dimensions[0]):
@@ -400,6 +406,8 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
                         val_new_pred[i][j] = 0
 
     # FIG 6 abd 7 of the paper for aug 2013
+
+    # TODO: Change this to match the input parameters
 
     a = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     # August for title of the plot

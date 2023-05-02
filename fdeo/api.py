@@ -337,8 +337,8 @@ class SSM(BaseAPI):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(4326)
 
-        lon_min, lat_max = -179.875, 89.875
-        lon_max, lat_min = 179.875, -59.875
+        lon_min, lat_max = -180, 90
+        lon_max, lat_min = 180, -60
 
         # Define the resolution of the raster in degrees
         lon_res = (lon_max - lon_min) / num_cols
