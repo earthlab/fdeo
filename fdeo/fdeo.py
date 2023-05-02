@@ -433,13 +433,13 @@ if __name__ == '__main__':
                         help='Begin date in YYYY-MM-DD format of datafiles to be downloaded from API')
     parser.add_argument('--end_date', type=str, required=False,
                         help='End date in YYYY-MM-DD format of datafiles to be downloaded from API')
-    parser.add_argument('-u', '--username', type=str, required=False,
+    parser.add_argument('-u', '--username', type=str, required=False, dest='username',
                         help='Username to https://urs.earthdata.nasa.gov/ . '
                              'Credentials can also be provided by providing a value to --credentials argument')
-    parser.add_argument('-p', '--password', type=str, required=False,
+    parser.add_argument('-p', '--password', type=str, required=False, dest='password',
                         help='Password to https://urs.earthdata.nasa.gov/ . '
                              'Credentials can also be provided by providing a value to --credentials argument')
-    parser.add_argument('-c', '--credentials', type=str, required=False,
+    parser.add_argument('-c', '--credentials', type=str, required=False, dest='credentials',
                         help='Path to file containing username and then password separated by newline for '
                              'https://urs.earthdata.nasa.gov/ ')
     ssm_data = None
