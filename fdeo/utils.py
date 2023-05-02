@@ -35,12 +35,17 @@ def set_tiff_resolution(input_resolution_path: str, target_resolution_path: str)
         input_res_lats = sorted(input_res_lats)
         input_res_data = np.flip(input_res_data, axis=1)  # Flip about the 'lon' axis
 
+    print(input_res_lats[0], input_res_lats[-1], input_res_lons[0], input_res_lons[-1])
+
     input_res_interp = RegularGridInterpolator((input_res_lats, input_res_lons),
-                                               input_res_data, method='linear')
+                                               input_res_data, method='linear', bounds_error=False)
 
     target_res = gdal.Open(target_resolution_path)
 
     target_res_lons, target_res_lats = get_geo_locations_from_tif(target_res)
+
+    print(target_res_lats[0], target_res_lats[-1], target_res_lons[0], target_res_lons[-1])
+
     target_lat_mesh, target_lon_res = np.meshgrid(target_res_lats, target_res_lons, indexing='ij')
 
     points = np.array([target_lat_mesh.flatten(), target_lon_res.flatten()]).T
