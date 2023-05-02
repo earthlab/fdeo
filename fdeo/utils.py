@@ -1,6 +1,6 @@
 from typing import List
 from osgeo import gdal
-from scipy import interpolate
+from scipy.interpolate import RegularGridInterpolator
 import numpy as np
 import os
 
@@ -29,7 +29,7 @@ def set_tiff_resolution(input_resolution_path: str, target_resolution_path: str)
 
     input_res_lons, input_res_lats = get_geo_locations_from_tif(input_res)
 
-    input_res_interp = interpolate.interp2d(input_res_lons, input_res_lats, input_res_data, kind='linear')
+    input_res_interp = RegularGridInterpolator(input_res_lons, input_res_lats, input_res_data, kind='linear')
 
     target_res = gdal.Open(target_resolution_path)
 
@@ -51,11 +51,9 @@ def get_geo_locations_from_tif(raster):
     lats = []
     for row in range(raster.RasterYSize):
         lats.append(y_origin - (row * y_size))
-    res_lats = np.repeat(np.array([lats]), raster.RasterXSize, axis=0)
 
     lons = []
     for col in range(raster.RasterXSize):
         lons.append(x_origin + (col * x_size))
-    res_lons = np.repeat(np.array([lons]), raster.RasterYSize, axis=0)
 
-    return res_lons, res_lats
+    return lons, lats
