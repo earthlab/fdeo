@@ -249,7 +249,7 @@ class SSM(BaseAPI):
     Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
     soil moisture data from the GRACE mission.
     """
-    _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GRACEDA/GRACEDADM_CLSM0125US_7D.4.0/'
+    _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D.2.2/'
 
     def __init__(self, username: str = None, password: str = None):
         super().__init__(username=username, password=password)
@@ -290,7 +290,7 @@ class SSM(BaseAPI):
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
-        nc4_re = r'GRACEDADM\_CLSM0125US\_7D\.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.040\.nc4$'
+        nc4_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/')
             files = self.retrieve_links(url)
@@ -419,8 +419,8 @@ class VPD(BaseAPI):
             # Open the GeoJSON file containing the polygon
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'float32',
-                             #"scale": 1/100000
+                             "transform": out_transform, "dtype": 'int32',
+                             "scale": 1/100000
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
@@ -431,14 +431,6 @@ class VPD(BaseAPI):
         vpd = SD(vpd_file, SDC.READ)
         rel_hum = np.clip(vpd.select('RelHumSurf_A').get(), a_min=0, a_max=None)
         surf_temp = vpd.select('SurfAirTemp_A').get() - 273.15
-        # c1 = 0.611
-        # c2 = 17.5
-        # c3 = 240.978
-        #
-        # a = (17.625 * surf_temp) / (243.04 + surf_temp)
-        # b = (17.625 - np.log(rel_hum / 100) - (17.625 * surf_temp)) / (243.04 + surf_temp)
-        # td = 243.04 * (np.log(rel_hum / 100) + a) / b
-        # vpd = c1 * (np.exp((c2 * surf_temp) / (c3 + surf_temp)) - np.exp((c2 * td) / (c3 + td)))
 
         es = 0.611 * np.exp((17.27 * surf_temp) / (surf_temp + 237.3))  # saturation vapor pressure
         e = (rel_hum / 100) * es  # vapor pressure
@@ -452,9 +444,10 @@ class VPD(BaseAPI):
         for file in os.listdir(time_series_dir):
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
 
-            vpd_array = vpd_array
+            vpd_array = vpd_array * 100000
 
             # TODO: Up sample to 0.25 deg resolution
+
 
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
