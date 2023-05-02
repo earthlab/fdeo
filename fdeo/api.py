@@ -28,6 +28,9 @@ import netCDF4 as nc
 
 
 # TODO: Make sure area of interest being requested is only CONUS
+VPD_SCALE_FACTOR = 100000
+SSM_SCALE_FACTOR = 10000
+
 
 
 class BaseAPI:
@@ -325,7 +328,7 @@ class SSM(BaseAPI):
 
             output_tiff_file = os.path.join(output_dir, os.path.basename(files[0]).replace('.nc4', '.tif'))
 
-            self._clip_to_conus(mean_array[0] * 10000, output_tiff_file)
+            self._clip_to_conus(mean_array[0] * SSM_SCALE_FACTOR, output_tiff_file)
 
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 600
@@ -361,7 +364,7 @@ class SSM(BaseAPI):
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
                              "transform": out_transform, "dtype": 'int32',
-                             'scale': 1 / 10000
+                             'scale': 1 / SSM_SCALE_FACTOR
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
@@ -415,7 +418,6 @@ class VPD(BaseAPI):
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
         date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year]
-        print(date_range)
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
@@ -426,7 +428,6 @@ class VPD(BaseAPI):
 
             for file in files:
                 match = re.match(self._file_re, file)
-                print(match, 'match')
                 if match is not None:
                     date_objs = match.groupdict()
                     file_date = datetime(int(date_objs['year']), int(date_objs['month']), int(date_objs['day']))
@@ -475,7 +476,7 @@ class VPD(BaseAPI):
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
                              "transform": out_transform, "dtype": 'int32',
-                             "scale": 1 / 100000
+                             "scale": 1 / VPD_SCALE_FACTOR
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
@@ -500,7 +501,7 @@ class VPD(BaseAPI):
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
 
             # TODO: Add constants for scale factors and use them in main function
-            vpd_array = vpd_array * 100000
+            vpd_array = vpd_array * VPD_SCALE_FACTOR
 
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 

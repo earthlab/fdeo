@@ -5,11 +5,11 @@ import numpy as np
 import os
 
 
-def fix_resolution_and_stack(sorted_input_files: List[str], target_resolution_file: str):
+def fix_resolution_and_stack(sorted_input_files: List[str], target_resolution_file: str, scale_factor: int = 1):
     month_data = []
     for file in sorted_input_files:
         data = set_tiff_resolution(file, target_resolution_file)
-        month_data.append(data)
+        month_data.append(data / scale_factor)
 
     return stack_arrays(month_data)
 
@@ -29,7 +29,7 @@ def set_tiff_resolution(input_resolution_path: str, target_resolution_path: str)
 
     input_res_lons, input_res_lats = get_geo_locations_from_tif(input_res)
 
-    input_res_interp = RegularGridInterpolator(input_res_lons, input_res_lats, input_res_data, kind='linear')
+    input_res_interp = RegularGridInterpolator(input_res_lons, input_res_lats, input_res_data, method='linear')
 
     target_res = gdal.Open(target_resolution_path)
 

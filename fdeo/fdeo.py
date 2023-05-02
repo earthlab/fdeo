@@ -14,7 +14,7 @@ from datetime import datetime
 from scipy import signal
 import matplotlib.pyplot as plt
 from functions import data2index, data2index_larger, calc_plotting_position
-from api import VPD, EVI, SSM
+from api import VPD, EVI, SSM, SSM_SCALE_FACTOR, VPD_SCALE_FACTOR
 from utils import fix_resolution_and_stack, stack_arrays
 from osgeo import gdal
 
@@ -488,12 +488,12 @@ if __name__ == '__main__':
         print(ssm.sort_tif_files(ssm_dir))
 
         stacked_evi_data = fix_resolution_and_stack(sorted_evi_files, ssm_sample_file)
-        stacked_vpd_data = fix_resolution_and_stack(sorted_vpd_files, ssm_sample_file)
+        stacked_vpd_data = fix_resolution_and_stack(sorted_vpd_files, ssm_sample_file, scale_factor=VPD_SCALE_FACTOR)
 
         ssm_month_data = []
         for ssm_file in ssm.sort_tif_files(ssm_dir):
             ssm_file_obj = gdal.Open(ssm_file)
-            ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray())
+            ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray() / SSM_SCALE_FACTOR)
 
         stacked_ssm_data = stack_arrays(ssm_month_data)
 
