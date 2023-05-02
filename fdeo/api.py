@@ -24,6 +24,7 @@ from pyhdf.SD import SD, SDC
 import rasterio
 from rasterio.mask import mask
 import geopandas as gpd
+import netCDF4 as nc
 
 
 # TODO: Make sure area of interest being requested is only CONUS
@@ -201,48 +202,6 @@ class BaseAPI:
 
         return output_path
 
-    def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
-        num_rows = 3600
-        num_cols = 7200
-
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-
-        lon_min, lat_max = -180, 90
-        lon_max, lat_min = 180, -90
-
-        # Define the resolution of the raster in degrees
-        lon_res = (lon_max - lon_min) / num_cols
-        lat_res = (lat_max - lat_min) / num_rows
-
-        # Define the geotransform array in lat/lon
-        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
-
-        print(geotransform)
-
-        tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
-
-        with rasterio.open(tiff_file) as src:
-            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
-                geojson = json.load(f)
-            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
-
-            # Extract the data using the polygon to create a mask
-            out_image, out_transform = mask(src, polygon.geometry, nodata=0, crop=True)
-
-            # Update the metadata of the output tif file
-            out_meta = src.meta.copy()
-
-            # Open the GeoJSON file containing the polygon
-
-            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'int32',
-                             'scale': 1/10000
-                             })
-            # Write the clipped tif file to disk
-            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
-                dest.write(out_image)
-
 
 class SSM(BaseAPI):
     """
@@ -254,6 +213,7 @@ class SSM(BaseAPI):
     def __init__(self, username: str = None, password: str = None):
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
+        self._nc4_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
 
     def _retrieve_dates(self) -> List[datetime]:
         """
@@ -290,14 +250,14 @@ class SSM(BaseAPI):
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
-        nc4_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
+
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + date.strftime('%m') + '/')
             print(url)
             files = self.retrieve_links(url)
 
             for file in files:
-                match = re.match(nc4_re, file)
+                match = re.match(self._nc4_re, file)
 
                 if match is not None:
                     date_objs = match.groupdict()
@@ -311,6 +271,82 @@ class SSM(BaseAPI):
                             queries.append(req)
         super().download_time_series(queries, outdir)
         return outdir
+
+    def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
+        time_series_dir = self.download_time_series(t_start, t_stop)
+
+        # Take the mean for each day of the month
+        files_by_month = {}
+        for file in os.listdir(time_series_dir):
+            file_path = os.path.join(time_series_dir, file)
+            match = re.match(self._nc4_re, file)
+
+            if match is not None:
+                date_objs = match.groupdict()
+                date_hash = date_objs['year'] + date_objs['month']
+                if date_hash not in files_by_month:
+                    files_by_month[date_hash] = [file_path]
+                else:
+                    files_by_month[date_hash].append(file_path)
+
+        for month_group in files_by_month:
+            daily_ssm = []
+            files = files_by_month[month_group]
+            for file in files:
+                nc_file = nc.Dataset(file, 'r')
+                # Get the dataset (variable) from the netCDF4 file
+                dataset_name = 'SoilMoist_RZ_tavg'
+                daily_ssm.append(nc_file.variables[dataset_name][:])
+            stacked_array = np.stack(daily_ssm, axis=0)
+            mean_array = np.mean(stacked_array, axis=0) * 10000
+
+            output_tiff_file = os.path.join(output_dir, files[0].replace('.nc4', '.tif'))
+
+            self._clip_to_conus(mean_array, output_tiff_file)
+
+        shutil.rmtree(time_series_dir)
+
+    def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
+        num_rows = 600
+        num_cols = 1440
+
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+
+        lon_min, lat_max = -180, 90
+        lon_max, lat_min = 180, -60
+
+        # Define the resolution of the raster in degrees
+        lon_res = (lon_max - lon_min) / num_cols
+        lat_res = (lat_max - lat_min) / num_rows
+
+        # Define the geotransform array in lat/lon
+        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+
+        print(geotransform)
+
+        tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
+
+        with rasterio.open(tiff_file) as src:
+            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
+                geojson = json.load(f)
+            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
+
+            # Extract the data using the polygon to create a mask
+            out_image, out_transform = mask(src, polygon.geometry, nodata=0, crop=True)
+
+            # Update the metadata of the output tif file
+            out_meta = src.meta.copy()
+
+            # Open the GeoJSON file containing the polygon
+
+            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
+                             "transform": out_transform, "dtype": 'int32',
+                             'scale': 1/10000
+                             })
+            # Write the clipped tif file to disk
+            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+                dest.write(out_image)
 
 
 class VPD(BaseAPI):
@@ -449,7 +485,6 @@ class VPD(BaseAPI):
 
             # TODO: Up sample to 0.25 deg resolution
 
-
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
             self._clip_to_conus(vpd_array, output_tiff_file)
@@ -554,3 +589,45 @@ class EVI(BaseAPI):
         self._clip_to_conus(down_sampled_array, output_tiff_file)
 
         shutil.rmtree(time_series_dir)
+
+    def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
+        num_rows = 3600
+        num_cols = 7200
+
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+
+        lon_min, lat_max = -180, 90
+        lon_max, lat_min = 180, -90
+
+        # Define the resolution of the raster in degrees
+        lon_res = (lon_max - lon_min) / num_cols
+        lat_res = (lat_max - lat_min) / num_rows
+
+        # Define the geotransform array in lat/lon
+        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+
+        print(geotransform)
+
+        tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
+
+        with rasterio.open(tiff_file) as src:
+            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
+                geojson = json.load(f)
+            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
+
+            # Extract the data using the polygon to create a mask
+            out_image, out_transform = mask(src, polygon.geometry, nodata=0, crop=True)
+
+            # Update the metadata of the output tif file
+            out_meta = src.meta.copy()
+
+            # Open the GeoJSON file containing the polygon
+
+            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
+                             "transform": out_transform, "dtype": 'int32',
+                             'scale': 1/10000
+                             })
+            # Write the clipped tif file to disk
+            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+                dest.write(out_image)
