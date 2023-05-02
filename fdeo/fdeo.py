@@ -429,7 +429,7 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
 if __name__ == '__main__':
     # TODO: Add option to input existing csv file other than default
     parser = argparse.ArgumentParser()
-    parser.add_argument('--start_time', type=str, required=False,
+    parser.add_argument('--start_date', type=str, required=False,
                         help='Begin date in YYYY-MM-DD format of datafiles to be downloaded from API')
     parser.add_argument('--end_date', type=str, required=False,
                         help='End date in YYYY-MM-DD format of datafiles to be downloaded from API')
@@ -447,7 +447,7 @@ if __name__ == '__main__':
     evi_data = None
 
     args = parser.parse_args()
-    if args.start_time is not None or args.stop_time is not None:
+    if args.start_date is not None or args.end_date is not None:
         username = args.username
         password = args.password
         if args.credentials is not None:
@@ -471,8 +471,8 @@ if __name__ == '__main__':
         os.makedirs(ssm_dir)
         os.makedirs(evi_dir)
         os.makedirs(vpd_dir)
-        start_date = datetime.strptime(args.start_time, "%Y-%m-%d") if args.start_time is not None else None
-        end_date = datetime.strptime(args.stop_time, "%Y-%m-%d") if args.stop_time is not None else None
+        start_date = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date is not None else None
+        end_date = datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date is not None else None
         ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
         evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
         vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
