@@ -15,19 +15,20 @@ from scipy import signal
 import matplotlib.pyplot as plt
 from functions import data2index, data2index_larger, calc_plotting_position
 from api import VPD, EVI, SSM
+from utils import fix_resolution_and_stack
+from osgeo import gdal
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
-def main(ssm_data: str = None, vpd_data: str = None, evi_data: str = None) -> None:
+def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.array = None) -> None:
     """
-    # TODO: Make this more descriptive
     Reads input data and creates smoothed climatology of wildfire burned data. Default training period is 2003-2013.
 
     Args:
-        ssm_data (str): Path to the ssm datafile. Defaults to 2003-2013 dataset.
-        vpd_data (str): Path to the vpd datafile. Defaults to 2003-2013 dataset.
-        evi_data (str): Path to the evi data. Defaults to 2003-2013 dataset.
+        ssm_data (np.array): Path to the ssm datafile. Defaults to 2003-2013 dataset.
+        vpd_data (np.array): Path to the vpd datafile. Defaults to 2003-2013 dataset.
+        evi_data (np.array): Path to the evi data. Defaults to 2003-2013 dataset.
     """
 
     # importing the land cover file (lc1.csv)
@@ -46,21 +47,24 @@ def main(ssm_data: str = None, vpd_data: str = None, evi_data: str = None) -> No
     %10: Wetland
     %15: ocean
     """
-    # soil moisture (sm) data from 2003-2013
 
-    sm_20032013 = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv') if ssm_data is None else ssm_data, delimiter=","
-    ).reshape((112, 244, 132))
+    if ssm_data is None:
+        # soil moisture (sm) data from 2003-2013
+        ssm_data = np.loadtxt(
+            os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv') if ssm_data is None else ssm_data, delimiter=","
+        ).reshape((112, 244, 132))
 
-    # vapor pressure deficit (vpd) data from 2003-2013
-    vpd_20032013 = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv') if vpd_data is None else vpd_data, delimiter=","
-    ).reshape((112, 244, 132))
+    if evi_data is None:
+        # enhanced vegetation index (EVI) data from 2003-2013
+        evi_data = np.loadtxt(
+            os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv') if evi_data is None else evi_data, delimiter=","
+        ).reshape((112, 244, 132))
 
-    # enhanced vegetation index (EVI) data from 2003-2013
-    evi_20032013 = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv') if evi_data is None else evi_data, delimiter=","
-    ).reshape((112, 244, 132))
+    if vpd_data is None:
+        # vapor pressure deficit (vpd) data from 2003-2013
+        vpd_data = np.loadtxt(
+            os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv') if vpd_data is None else vpd_data, delimiter=","
+        ).reshape((112, 244, 132))
 
     # Fire data from 2003-2013
     firemon_tot_size = np.loadtxt(
@@ -100,15 +104,15 @@ def main(ssm_data: str = None, vpd_data: str = None, evi_data: str = None) -> No
 
     # Deciduous DI
     sc_drought = 1  # month range
-    deciduous_best_ba = data2index(sm_20032013, sc_drought)
+    deciduous_best_ba = data2index(ssm_data, sc_drought)
 
     # Shrubland DI
     sc_drought = 1
-    shrubland_best_ba = data2index(evi_20032013, sc_drought)
+    shrubland_best_ba = data2index(evi_data, sc_drought)
 
     # Evergreen DI
     sc_drought = 3
-    vpd_new_drought = data2index_larger(vpd_20032013, sc_drought)
+    vpd_new_drought = data2index_larger(vpd_data, sc_drought)
     evergreen_best_ba = vpd_new_drought
 
     # Herbaceous DI
@@ -116,7 +120,7 @@ def main(ssm_data: str = None, vpd_data: str = None, evi_data: str = None) -> No
 
     # Wetland DI
     sc_drought = 3
-    wetland_best_ba = data2index(sm_20032013, sc_drought)
+    wetland_best_ba = data2index(ssm_data, sc_drought)
 
     # Build the prediction model. One model for each land cover type
 
@@ -456,24 +460,47 @@ if __name__ == '__main__':
             raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
                              ' or -u and -p arguments if you would like to download from the API')
 
+        ssm = SSM(username=username, password=password)
         evi = EVI(username=username, password=password)
         vpd = VPD(username=username, password=password)
-        ssm = SSM(username=username, password=password)
 
         tempdir = tempfile.mkdtemp(prefix='fdeo')
+        ssm_dir = os.path.join(tempdir, 'ssm')
+        evi_dir = os.path.join(tempdir, 'evi')
+        vpd_dir = os.path.join(tempdir, 'vpd')
+        os.makedirs(ssm_dir)
+        os.makedirs(evi_dir)
+        os.makedirs(vpd_dir)
         start_date = datetime.strptime(args.start_time, "%Y-%m-%d") if args.start_time is not None else None
         end_date = datetime.strptime(args.stop_time, "%Y-%m-%d") if args.stop_time is not None else None
-        evi_data = evi.download_time_series(start_date, end_date)
-        vpd_data = vpd.download_time_series(start_date, end_date)
-        ssm_data = ssm.download_time_series(start_date, end_date)
+        ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
+        evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
+        vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
 
-        # TODO: Further prepare the data here (parsing, interpolation, concatenation, etc.)
+        # Sample the EVI and VPD data to the SSM 0.25 deg spatial resolution
+        ssm_sample_file = os.listdir(ssm_dir)[0]
 
-    main(evi_data=evi_data, vpd_data=vpd_data, ssm_data=ssm_data)
+        sorted_evi_files = evi.sort_files(evi_dir)
+        sorted_vpd_files = vpd.sort_files(vpd_dir)
+
+        stacked_evi_data = fix_resolution_and_stack(sorted_evi_files, ssm_sample_file)
+        stacked_vpd_data = fix_resolution_and_stack(sorted_vpd_files, ssm_sample_file)
+
+        ssm_month_data = []
+        for ssm_file in ssm.sort_files(ssm_dir):
+            ssm_file_obj = gdal.Open(ssm_file)
+            ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray())
+        stacked_ssm_data = np.stack(ssm_month_data, axis=2)
+
+        print(stacked_ssm_data.shape)
+        print(stacked_evi_data.shape)
+        print(stacked_vpd_data.shape)
+
+    main(ssm_data=stacked_ssm_data, evi_data=stacked_evi_data, vpd_data=stacked_vpd_data)
 
     if ssm_data is not None:
-        shutil.rmtree(ssm_data)
-    if vpd_data is not None:
-        shutil.rmtree(vpd_data)
+        shutil.rmtree(ssm_dir)
     if evi_data is not None:
-        shutil.rmtree(evi_data)
+        shutil.rmtree(evi_dir)
+    if vpd_data is not None:
+        shutil.rmtree(vpd_dir)

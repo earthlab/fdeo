@@ -44,6 +44,7 @@ class BaseAPI:
         self._password = password
         self._core_count = os.cpu_count()
         self._configure()
+        self._file_re = None
 
     @staticmethod
     def retrieve_links(url: str) -> List[str]:
@@ -202,18 +203,28 @@ class BaseAPI:
 
         return output_path
 
+    def sort_files(self, input_dir: str):
+        group_dicts = []
+        for file in os.listdir(input_dir):
+            match = re.match(self._file_re, file)
+            if match:
+                group_dicts.append((os.path.join(input_dir, file), match.groupdict()))
+
+        return sorted([v[0] for v in group_dicts], key=lambda x: datetime(int(x[1]['year']), int(x[1]['month']),
+                                                                          int(x[1]['day'])).timestamp())
+
 
 class SSM(BaseAPI):
     """
     Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
-    soil moisture data from the GRACE mission.
+    soil moisture data from the GLDAS mission.
     """
     _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D.2.2/'
 
     def __init__(self, username: str = None, password: str = None):
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
-        self._nc4_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
+        self._file_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
 
     def _retrieve_dates(self) -> List[datetime]:
         """
@@ -254,10 +265,8 @@ class SSM(BaseAPI):
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
-        print(self._dates)
         date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year and
                       t_start.month <= date.month <= t_stop.month]
-        print(date_range)
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
@@ -265,11 +274,10 @@ class SSM(BaseAPI):
 
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + date.strftime('%m') + '/')
-            print(url)
             files = self.retrieve_links(url)
 
             for file in files:
-                match = re.match(self._nc4_re, file)
+                match = re.match(self._file_re, file)
 
                 if match is not None:
                     date_objs = match.groupdict()
@@ -291,7 +299,7 @@ class SSM(BaseAPI):
         files_by_month = {}
         for file in os.listdir(time_series_dir):
             file_path = os.path.join(time_series_dir, file)
-            match = re.match(self._nc4_re, file)
+            match = re.match(self._file_re, file)
 
             if match is not None:
                 date_objs = match.groupdict()
@@ -310,9 +318,7 @@ class SSM(BaseAPI):
                 dataset_name = 'SoilMoist_RZ_tavg'
                 daily_ssm.append(nc_file.variables[dataset_name][:])
             stacked_array = np.stack(daily_ssm, axis=0)
-            print(stacked_array.shape)
             mean_array = np.mean(stacked_array, axis=0)
-            print(mean_array.shape)
 
             output_tiff_file = os.path.join(output_dir, os.path.basename(files[0]).replace('.nc4', '.tif'))
 
@@ -337,11 +343,7 @@ class SSM(BaseAPI):
         # Define the geotransform array in lat/lon
         geotransform = [lon_min, lon_res, 0, lat_min, 0, lat_res]
 
-        print(geotransform)
-
         tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
-
-        print('Wrote tiff file to ', tiff_file)
 
         with rasterio.open(tiff_file) as src:
             with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
@@ -379,6 +381,7 @@ class VPD(BaseAPI):
         """
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
+        self._file_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetStd_IR\d{3}\.v\d+\.\d+\.\d+\.\d+\.G\d{11}\.hdf\.html$'
 
     def _retrieve_dates(self) -> List[datetime]:
         """
@@ -415,13 +418,12 @@ class VPD(BaseAPI):
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
-        hdf_re = r'AIRS\.(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})\.L3\.RetStd_IR\d{3}\.v\d+\.\d+\.\d+\.\d+\.G\d{11}\.hdf\.html$'
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + 'contents.html')
             files = self.retrieve_links(url)
 
             for file in files:
-                match = re.match(hdf_re, file)
+                match = re.match(self._file_re, file)
 
                 if match is not None:
                     date_objs = match.groupdict()
@@ -522,6 +524,7 @@ class EVI(BaseAPI):
         """
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
+        self._file_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
 
     def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """
@@ -547,12 +550,11 @@ class EVI(BaseAPI):
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
-        hdf_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y.%m.%d') + '/')
             files = self.retrieve_links(url)
             for file in files:
-                if re.match(hdf_re, file) is not None:
+                if re.match(self._file_re, file) is not None:
                     remote = urllib.parse.urljoin(url, file)
                     dest = os.path.join(self._TEMP_DIR if outdir is None else outdir, file)
                     queries.append((remote, dest))
@@ -587,7 +589,7 @@ class EVI(BaseAPI):
 
         return output_array
 
-    def create_stacked_time_series(self, output_tiff_file: str, t_start: datetime = None, t_stop: datetime = None):
+    def create_clipped_time_series(self, output_tiff_file: str, t_start: datetime = None, t_stop: datetime = None):
         time_series_dir = self.download_time_series(t_start, t_stop)
 
         arrays = []
