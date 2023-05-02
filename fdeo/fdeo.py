@@ -20,8 +20,7 @@ from osgeo import gdal
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
-
-def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.array = None) -> None:
+def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_prediction_data: np.array) -> None:
     """
     Reads input data and creates smoothed climatology of wildfire burned data. Default training period is 2003-2013.
 
@@ -33,6 +32,7 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
 
     # importing the land cover file (lc1.csv)
     lc1 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'lc1.csv'), delimiter=",")
+    training_data_dimensions = lc1.shape
     """
     % ID for each Land cover type
     %1: Lake
@@ -48,35 +48,31 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     %15: ocean
     """
 
-    if ssm_data is None:
-        # soil moisture (sm) data from 2003-2013
-        ssm_data = np.loadtxt(
-            os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv') if ssm_data is None else ssm_data, delimiter=","
-        ).reshape((112, 244, 132))
+    # soil moisture (sm) data from 2003-2013
+    ssm_training_data = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv') if ssm_data is None else ssm_data, delimiter=","
+    ).reshape(training_data_dimensions)
 
-    if evi_data is None:
-        # enhanced vegetation index (EVI) data from 2003-2013
-        evi_data = np.loadtxt(
-            os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv') if evi_data is None else evi_data, delimiter=","
-        ).reshape((112, 244, 132))
+    # enhanced vegetation index (EVI) data from 2003-2013
+    evi_training_data = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv') if evi_data is None else evi_data, delimiter=","
+    ).reshape(training_data_dimensions)
 
-    if vpd_data is None:
-        # vapor pressure deficit (vpd) data from 2003-2013
-        vpd_data = np.loadtxt(
-            os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv') if vpd_data is None else vpd_data, delimiter=","
-        ).reshape((112, 244, 132))
+    # vapor pressure deficit (vpd) data from 2003-2013
+    vpd_training_data = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv') if vpd_data is None else vpd_data, delimiter=","
+    ).reshape(training_data_dimensions)
 
     # Fire data from 2003-2013
     firemon_tot_size = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'firemon_tot_size.csv'), delimiter=",").reshape((112, 244, 132))
+        os.path.join(FDEO_DIR, 'data', 'firemon_tot_size.csv'), delimiter=",").reshape(training_data_dimensions)
 
     # calculate the fire climatology for each month
 
     # split the dim sizes for ease
-    mtrxshape = np.shape(firemon_tot_size)
-    firemon_tot_size_x = mtrxshape[0]
-    firemon_tot_size_y = mtrxshape[1]
-    firemon_tot_size_z = mtrxshape[2]
+    firemon_tot_size_x = training_data_dimensions[0]  # lat
+    firemon_tot_size_y = training_data_dimensions[1]  # lon
+    firemon_tot_size_z = training_data_dimensions[2]  # months
 
     firemon_tot_size_climatology = np.empty((firemon_tot_size_x, firemon_tot_size_y, 12))
     for i in range(firemon_tot_size_x):
@@ -102,34 +98,66 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     # the "best" drought indicator (DI) and then creates a historical record of
     # probabilistic and categorical wildfire prediction and observation data
 
+    # TODO: Functions
+    # Prepare and define training data sets
     # Deciduous DI
     sc_drought = 1  # month range
-    deciduous_best_ba = data2index(ssm_data, sc_drought)
+    deciduous_best_ba_training = data2index(ssm_training_data, sc_drought)
 
     # Shrubland DI
     sc_drought = 1
-    shrubland_best_ba = data2index(evi_data, sc_drought)
+    shrubland_best_ba_training = data2index(evi_training_data, sc_drought)
 
     # Evergreen DI
     sc_drought = 3
-    vpd_new_drought = data2index_larger(vpd_data, sc_drought)
-    evergreen_best_ba = vpd_new_drought
+    vpd_new_drought = data2index_larger(vpd_training_data, sc_drought)
+    evergreen_best_ba_training = vpd_new_drought
 
     # Herbaceous DI
-    herbaceous_best_ba = vpd_new_drought
+    herbaceous_best_ba_training = vpd_new_drought
 
     # Wetland DI
     sc_drought = 3
-    wetland_best_ba = data2index(ssm_data, sc_drought)
+    wetland_best_ba_training = data2index(ssm_training_data, sc_drought)
+
+
+    # Prepare and define prediction data sets
+    # Deciduous DI
+    sc_drought = 1  # month range
+    deciduous_best_ba_prediction = data2index(ssm_prediction_data, sc_drought)
+
+    # Shrubland DI
+    sc_drought = 1
+    shrubland_best_ba_prediction = data2index(evi_prediction_data, sc_drought)
+
+    # Evergreen DI
+    sc_drought = 3
+    vpd_new_drought = data2index_larger(vpd_prediction_data, sc_drought)
+    evergreen_best_ba_prediction = vpd_new_drought
+
+    # Herbaceous DI
+    herbaceous_best_ba_prediction = vpd_new_drought
+
+    # Wetland DI
+    sc_drought = 3
+    wetland_best_ba_prediction = data2index(ssm_training_data, sc_drought)
 
     # Build the prediction model. One model for each land cover type
 
-    print('Fireman tot sizes', firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z)
-
     # Set initial dimensions of prediction probabilistic matrix
+
+
+    if not vpd_prediction_data.shape == ssm_prediction_data.shape == evi_prediction_data.shape:
+        raise ValueError(f'Prediction dataset shapes not the same: SSM {ssm_prediction_data.shape},'
+                         f' EVI: {evi_prediction_data.shape}, VPD: {vpd_prediction_data.shape}')
+
+    prediction_lat_size = ssm_prediction_data.shape[0]
+    prediction_lon_size = ssm_prediction_data.shape[1]
+    prediction_month_size = ssm_prediction_data.shape[2]
+
     # TODO: EV: This is what is actually used to hold the results. Need to change dimensions of this to fit the
     #  input data dimensions
-    fire_pred_ini = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
+    fire_pred_ini = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
 
     # List of land-cover IDs according to below
     # 4: Deciduous
@@ -138,29 +166,52 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     # 8: Herbaceous
     # 10: Wetland
     lctypemat = [4, 5, 7, 8, 10]
-    land_cover_data = [
+    land_cover_training_data = [
         {
-            'data': deciduous_best_ba,
+            'data': deciduous_best_ba_training,
             'index': 4
         },
         {
-            'data': evergreen_best_ba,
+            'data': evergreen_best_ba_training,
             'index': 5
         },
         {
-            'data': shrubland_best_ba,
+            'data': shrubland_best_ba_training,
             'index': 7
         },
         {
-            'data': herbaceous_best_ba,
+            'data': herbaceous_best_ba_training,
             'index': 8
         },
         {
-            'data': wetland_best_ba,
+            'data': wetland_best_ba_training,
             'index': 10
         }
     ]
-    for lc_co, lc_forecast in enumerate(land_cover_data):
+
+    land_cover_prediction_data = [
+        {
+            'data': deciduous_best_ba_prediction,
+            'index': 4
+        },
+        {
+            'data': evergreen_best_ba_prediction,
+            'index': 5
+        },
+        {
+            'data': shrubland_best_ba_prediction,
+            'index': 7
+        },
+        {
+            'data': herbaceous_best_ba_prediction,
+            'index': 8
+        },
+        {
+            'data': wetland_best_ba_prediction,
+            'index': 10
+        }
+    ]
+    for lc_co, lc_forecast in enumerate(land_cover_training_data):
         # First build the regression model for the LC Type initial parameters
         mat = np.empty((2, firemon_tot_size.size), dtype=float)  # Initial array
         m = 0  # Burned area for each LC. 1-5 is each diff one
@@ -236,9 +287,6 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
         obs_res = np.empty((lc_co + 1, 11))
         for i in range(len(varbin)):
             # Model at each bin
-            # TODO: EV: Not using highest power (0 index of gofmat1) coefficient with quadratic term
-            # TODO: EV: Why is this being done. A curve fit to (x, y) data is being used to find new y points with the
-            #  same x's??
             model_res[lc_co][i] = gofmat1[0] * (varbin[i] ** 2) + gofmat1[1] * varbin[i] + gofmat1[2]
 
             # Observation at each bin
@@ -247,14 +295,14 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
         del x
         del y
 
+        prediction_data_dict = land_cover_prediction_data[lc_co]
         # Now build a historical forecast matrix based on the developed regression model for each LC Type
-        # TODO: Change these ranges to fit input data
-        for k in range(4, firemon_tot_size_z):
-            for i in range(firemon_tot_size_x):
-                for j in range(firemon_tot_size_y):
-                    if lc1[i][j] == lc_forecast['index']:
-                        fire_pred_ini[i][j][k] = gofmat1[0] * (lc_forecast['data'][i][j][k - lead] ** 2) + gofmat1[1] \
-                                                 * lc_forecast['data'][i][j][k - lead] + gofmat1[2]
+        for k in range(4, prediction_month_size):
+            for i in range(prediction_lat_size):
+                for j in range(prediction_lon_size):
+                    if lc1[i][j] == prediction_data_dict['index']:
+                        fire_pred_ini[i][j][k] = gofmat1[0] * (prediction_data_dict['data'][i][j][k - lead] ** 2) +\
+                                                 gofmat1[1] * prediction_data_dict['data'][i][j][k - lead] + gofmat1[2]
 
         # Build a correlation matrix and R2 matrix of goodness of fit for all models. Each row represents one LC Type
         forrange = np.shape(model_res)
@@ -287,14 +335,18 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     fire_obs_ini = firemon_tot_size
 
     # subtract prediction and observation from climatology to derive anomalies
-    fire_pred_ini_cate = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
     fire_obs_ini_cate = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
-
     obs_ini_split = np.dsplit(fire_obs_ini, 11)
-    pred_ini_split = np.dsplit(fire_pred_ini, 11)  # TODO: Change these to fit the number of input years
     for i in range(11):
         np.append(fire_obs_ini_cate, obs_ini_split[i] - firemon_tot_size_climatology_smoothed_3, axis=2)
-        np.append(fire_pred_ini_cate, pred_ini_split[i] - firemon_tot_size_climatology_smoothed_3, axis=2)
+
+    # TODO: Need filtering of the same size
+    # Prediction data might not be in 1 year chunks
+    fire_pred_ini_cate = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
+    pred_ini_split = np.dsplit(fire_pred_ini, prediction_month_size)
+    for i in range(prediction_month_size):
+        j = i - (12 * (i // 12))
+        np.append(fire_pred_ini_cate, pred_ini_split[i] - firemon_tot_size_climatology_smoothed_3[j], axis=2)
 
     # Derive bias adjusted observation and prediction probabilities and categorical forecast for the entire time series
     # distribution of prediction and observation come from Gringorten empirical distribution function (empdis function)
@@ -303,11 +355,12 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     # derive CDF for each land cover type and for each month.
     # Build probabilistic prediction and observation matrices
     val_new_obs_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
-    val_new_pred_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
+    val_new_pred_tot_1 = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
     obs_split = np.dsplit(fire_obs_ini_cate, 132)
-    pred_split = np.dsplit(fire_pred_ini_cate, 132)  # TODO: Change this to fit number of input months
+    pred_split = np.dsplit(fire_pred_ini_cate, prediction_month_size)
     dimensions = np.shape(fire_pred_ini_cate)
 
+    # TODO: Two different loops for pred and obs?
     for k in range(dimensions[0]):
 
         # Matrix of observation and prediction anomalies for each month
