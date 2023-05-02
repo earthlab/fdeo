@@ -341,6 +341,8 @@ class SSM(BaseAPI):
 
         tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
 
+        print('Wrote tiff file to ', tiff_file)
+
         with rasterio.open(tiff_file) as src:
             with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
                 geojson = json.load(f)
@@ -361,6 +363,7 @@ class SSM(BaseAPI):
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
                 dest.write(out_image)
+                print(out_image, 'Wrote out')
 
 
 class VPD(BaseAPI):
