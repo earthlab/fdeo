@@ -29,7 +29,14 @@ def set_tiff_resolution(input_resolution_path: str, target_resolution_path: str)
 
     input_res_lons, input_res_lats = get_geo_locations_from_tif(input_res)
 
-    input_res_interp = RegularGridInterpolator((input_res_lats, input_res_lons), input_res_data, method='linear')
+    # Lats and lons must be ascending. For most data, the GeoTransform defines the top left corner of the data and thus
+    # the lats will be descending. If this is the case, sort the lats and flip the data about the "x" axis
+    if input_res_lats[0] > input_res_lats[1]:
+        input_res_lats = sorted(input_res_lats)
+        input_res_data = np.flip(input_res_data, axis=1)  # Flip about the 'lon' axis
+
+    input_res_interp = RegularGridInterpolator((input_res_lats, input_res_lons),
+                                               input_res_data, method='linear')
 
     target_res = gdal.Open(target_resolution_path)
 
