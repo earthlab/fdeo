@@ -292,7 +292,7 @@ class SSM(BaseAPI):
         queries = []
         nc4_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
         for date in date_range:
-            url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + date.strftime('%M') + '/')
+            url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + date.strftime('%m') + '/')
             print(url)
             files = self.retrieve_links(url)
 
