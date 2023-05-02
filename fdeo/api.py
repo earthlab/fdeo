@@ -184,7 +184,7 @@ class BaseAPI:
             no_data (int): Value in numpy array that should be treated as no data
             gdal_data_type (int): Gdal data type of raster (see gdal documentation for list of values)
         """
-        rows, columns, _ = numpy_array.shape
+        rows, columns = numpy_array.shape
 
         # create output raster
         output_raster = self._create_raster(output_path, int(columns), int(rows), n_band, gdal_data_type)
@@ -222,8 +222,14 @@ class SSM(BaseAPI):
             (list): List of available dates on the OPeNDAP server in ascending order
         """
         date_re = r'\d{4}'
-        links = self.retrieve_links(self._BASE_URL)
-        return sorted([datetime.strptime(link.strip('/'), '%Y') for link in links if re.match(date_re, link) is not
+        years = self.retrieve_links(self._BASE_URL)
+        links = []
+        for year in years:
+            months = self.retrieve_links(os.path.join(self._BASE_URL, year, '/'))
+            for month in months:
+                links.append(os.path.join(year, month))
+
+        return sorted([datetime.strptime(link, '%Y/%b/') for link in links if re.match(date_re, link) is not
                        None])
 
     def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
@@ -244,7 +250,9 @@ class SSM(BaseAPI):
 
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
-        date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year]
+        print(self._dates)
+        date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year and
+                      t_start.month <= date.month <= t_stop.month]
         print(date_range)
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
@@ -298,11 +306,13 @@ class SSM(BaseAPI):
                 dataset_name = 'SoilMoist_RZ_tavg'
                 daily_ssm.append(nc_file.variables[dataset_name][:])
             stacked_array = np.stack(daily_ssm, axis=0)
-            mean_array = np.mean(stacked_array, axis=0) * 10000
+            print(stacked_array.shape)
+            mean_array = np.mean(stacked_array, axis=0)
+            print(mean_array.shape)
 
             output_tiff_file = os.path.join(output_dir, files[0].replace('.nc4', '.tif'))
 
-            self._clip_to_conus(mean_array, output_tiff_file)
+            self._clip_to_conus(mean_array[0] * 10000, output_tiff_file)
 
         shutil.rmtree(time_series_dir)
 
