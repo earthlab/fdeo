@@ -29,6 +29,8 @@ def set_tiff_resolution(input_resolution_path: str, target_resolution_path: str)
 
     input_res_lons, input_res_lats = get_geo_locations_from_tif(input_res)
 
+    print(input_res_data.shape)
+
     input_res_interp = RegularGridInterpolator((input_res_lons, input_res_lats), input_res_data, method='linear')
 
     target_res = gdal.Open(target_resolution_path)

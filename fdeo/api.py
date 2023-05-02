@@ -367,7 +367,7 @@ class SSM(BaseAPI):
                              'scale': 1 / SSM_SCALE_FACTOR
                              })
             # Write the clipped tif file to disk
-            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+            with rasterio.open(tiff_file, "w", **out_meta) as dest:
                 dest.write(out_image)
 
 
@@ -478,8 +478,9 @@ class VPD(BaseAPI):
                              "transform": out_transform, "dtype": 'int32',
                              "scale": 1 / VPD_SCALE_FACTOR
                              })
+
             # Write the clipped tif file to disk
-            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+            with rasterio.open(tiff_file, "w", **out_meta) as dest:
                 dest.write(out_image)
 
     @staticmethod
@@ -622,5 +623,5 @@ class EVI(BaseAPI):
                              'scale': 1 / 10000
                              })
             # Write the clipped tif file to disk
-            with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
+            with rasterio.open(tiff_file, "w", **out_meta) as dest:
                 dest.write(out_image)
