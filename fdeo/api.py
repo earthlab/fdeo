@@ -320,8 +320,7 @@ class SSM(BaseAPI):
             files = files_by_month[month_group]
             for file in files:
                 nc_file = nc.Dataset(file, 'r')
-                # Get the dataset (variable) from the netCDF4 file
-                dataset_name = 'SoilMoist_RZ_tavg'
+                dataset_name = 'SoilMoist_S_tavg'
                 daily_ssm.append(nc_file.variables[dataset_name][:])
             stacked_array = np.stack(daily_ssm, axis=0)
             mean_array = np.mean(stacked_array, axis=0)
