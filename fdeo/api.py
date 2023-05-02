@@ -327,15 +327,15 @@ class SSM(BaseAPI):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(4326)
 
-        lon_min, lat_max = -180, 90
-        lon_max, lat_min = 180, -60
+        lon_min, lat_max = -179.875, 89.875
+        lon_max, lat_min = 179.875, -59.875
 
         # Define the resolution of the raster in degrees
         lon_res = (lon_max - lon_min) / num_cols
         lat_res = (lat_max - lat_min) / num_rows
 
         # Define the geotransform array in lat/lon
-        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+        geotransform = [lon_min, lon_res, 0, lat_min, 0, lat_res]
 
         print(geotransform)
 
