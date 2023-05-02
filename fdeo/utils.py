@@ -34,7 +34,7 @@ def set_tiff_resolution(input_resolution_path: str, target_resolution_path: str)
     target_res = gdal.Open(target_resolution_path)
 
     target_res_lons, target_res_lats = get_geo_locations_from_tif(target_res)
-    target_res_data = input_res_interp(target_res_lats, target_res_lons)
+    target_res_data = input_res_interp((target_res_lats, target_res_lons))
 
     return target_res_data
 
