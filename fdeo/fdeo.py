@@ -478,7 +478,7 @@ if __name__ == '__main__':
         vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
 
         # Sample the EVI and VPD data to the SSM 0.25 deg spatial resolution
-        ssm_sample_file = os.listdir(ssm_dir)[0]
+        ssm_sample_file = os.path.join(ssm_dir, os.listdir(ssm_dir)[0])
 
         sorted_evi_files = evi.sort_tif_files(evi_dir)
         sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
