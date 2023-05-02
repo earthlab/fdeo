@@ -419,8 +419,8 @@ class VPD(BaseAPI):
             # Open the GeoJSON file containing the polygon
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'int32',
-                             "scale": 1/100000
+                             "transform": out_transform, "dtype": 'float32',
+                             #"scale": 1/100000
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
@@ -452,7 +452,7 @@ class VPD(BaseAPI):
         for file in os.listdir(time_series_dir):
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
 
-            vpd_array = vpd_array * 100000
+            vpd_array = vpd_array
 
             # TODO: Up sample to 0.25 deg resolution
 
