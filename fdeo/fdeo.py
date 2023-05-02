@@ -483,6 +483,10 @@ if __name__ == '__main__':
         sorted_evi_files = evi.sort_files(evi_dir)
         sorted_vpd_files = vpd.sort_files(vpd_dir)
 
+        print(sorted_evi_files)
+        print(sorted_vpd_files)
+        print(ssm.sort_files(ssm_dir))
+
         stacked_evi_data = fix_resolution_and_stack(sorted_evi_files, ssm_sample_file)
         stacked_vpd_data = fix_resolution_and_stack(sorted_vpd_files, ssm_sample_file)
 
