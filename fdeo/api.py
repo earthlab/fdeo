@@ -89,7 +89,7 @@ class BaseAPI:
         if 'SSL_CERT_FILE' not in os.environ or os.environ['SSL_CERT_FILE'] != ssl_cert_path:
             os.environ['SSL_CERT_FILE'] = ssl_cert_path
 
-        if'REQUESTS_CA_BUNDLE' not in os.environ or os.environ['REQUESTS_CA_BUNDLE'] != ssl_cert_path:
+        if 'REQUESTS_CA_BUNDLE' not in os.environ or os.environ['REQUESTS_CA_BUNDLE'] != ssl_cert_path:
             os.environ['REQUESTS_CA_BUNDLE'] = ssl_cert_path
 
     def _download(self, query: Tuple[str, str]) -> None:
@@ -235,8 +235,8 @@ class SSM(BaseAPI):
                         print(os.path.join(year, month))
                         links.append(os.path.join(year, month))
 
-        return sorted([datetime.strptime(link, '%Y/%b/') for link in links if re.match(date_re, link) is not
-                       None])
+        return sorted(list(set([datetime.strptime(link, '%Y/%m/') for link in links if re.match(date_re, link) is not
+                                None])))
 
     def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """
@@ -358,7 +358,7 @@ class SSM(BaseAPI):
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
                              "transform": out_transform, "dtype": 'int32',
-                             'scale': 1/10000
+                             'scale': 1 / 10000
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
@@ -473,7 +473,7 @@ class VPD(BaseAPI):
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
                              "transform": out_transform, "dtype": 'int32',
-                             "scale": 1/100000
+                             "scale": 1 / 100000
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
@@ -642,7 +642,7 @@ class EVI(BaseAPI):
 
             out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
                              "transform": out_transform, "dtype": 'int32',
-                             'scale': 1/10000
+                             'scale': 1 / 10000
                              })
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
