@@ -211,8 +211,9 @@ class BaseAPI:
             if match:
                 group_dicts.append((os.path.join(input_dir, file), match.groupdict()))
 
-        return sorted([v[0] for v in group_dicts], key=lambda x: datetime(int(x[1]['year']), int(x[1]['month']),
-                                                                          int(x[1]['day'])).timestamp())
+        return [w[0] for w in sorted([v for v in group_dicts], key=lambda x: datetime(int(x[1]['year']),
+                                                                                      int(x[1]['month']),
+                                                                                      int(x[1]['day'])).timestamp())]
 
 
 class SSM(BaseAPI):
