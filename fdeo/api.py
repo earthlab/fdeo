@@ -431,12 +431,18 @@ class VPD(BaseAPI):
         vpd = SD(vpd_file, SDC.READ)
         rel_hum = np.clip(vpd.select('RelHumSurf_A').get(), a_min=0, a_max=None)
         surf_temp = vpd.select('SurfAirTemp_A').get() - 273.15
+        # c1 = 0.611
+        # c2 = 17.5
+        # c3 = 240.978
+        #
+        # a = (17.625 * surf_temp) / (243.04 + surf_temp)
+        # b = (17.625 - np.log(rel_hum / 100) - (17.625 * surf_temp)) / (243.04 + surf_temp)
+        # td = 243.04 * (np.log(rel_hum / 100) + a) / b
+        # vpd = c1 * (np.exp((c2 * surf_temp) / (c3 + surf_temp)) - np.exp((c2 * td) / (c3 + td)))
 
-        a = (17.625 * surf_temp) / (243.04 + surf_temp)
-        b = (17.625 - np.log(rel_hum / 100) - (17.625 * surf_temp)) / (243.04 + surf_temp)
-        td = 243.04 * (np.log(rel_hum / 100) + a) / b
-        vpd = 0.611 * np.exp((17.5 * surf_temp) / (240.978 + surf_temp)) - (
-                    0.611 * np.exp((17.5 * td) / (240.978 + td)))
+        es = 0.611 * np.exp((17.27 * surf_temp) / (surf_temp + 237.3))  # saturation vapor pressure
+        e = (rel_hum / 100) * es  # vapor pressure
+        vpd = es - e
 
         return vpd
 
