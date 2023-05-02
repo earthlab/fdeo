@@ -523,7 +523,7 @@ class EVI(BaseAPI):
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
         self._file_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
-        self._tif_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.tif$'
+        self._tif_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\_(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\_\.tif$'
 
     def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """
@@ -555,7 +555,8 @@ class EVI(BaseAPI):
             for file in files:
                 if re.match(self._file_re, file) is not None:
                     remote = urllib.parse.urljoin(url, file)
-                    dest = os.path.join(self._TEMP_DIR if outdir is None else outdir, file)
+                    out_file = file.replace('.hdf', f"_{date.strftime('%Y%m%d')}_.hdf")
+                    dest = os.path.join(self._TEMP_DIR if outdir is None else outdir, out_file)
                     queries.append((remote, dest))
 
         super().download_time_series(queries, outdir)
@@ -571,22 +572,6 @@ class EVI(BaseAPI):
         links = self.retrieve_links(self._BASE_URL)
         return sorted([datetime.strptime(link.strip('/'), '%Y.%m.%d') for link in links if
                        re.match(date_re, link.strip('/')) is not None])
-
-    @staticmethod
-    def _down_sample(input_array: np.array) -> np.array:
-        # Calculate the number of rows and columns in the downsampled array
-        rows = input_array.shape[0] // 5
-        cols = input_array.shape[1] // 5
-
-        # Create an empty array to hold the downsampled values
-        output_array = np.zeros((rows, cols))
-
-        # Loop over the down sampled array and populate with the average of the 0.05 x 0.05 degree pixels
-        for i in range(rows):
-            for j in range(cols):
-                output_array[i, j] = np.mean(output_array[5 * i:5 * (i + 1), 5 * j:5 * (j + 1)])
-
-        return output_array
 
     def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
         time_series_dir = self.download_time_series(t_start, t_stop)
