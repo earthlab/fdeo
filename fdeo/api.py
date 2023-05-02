@@ -221,14 +221,16 @@ class SSM(BaseAPI):
         Returns:
             (list): List of available dates on the OPeNDAP server in ascending order
         """
-        date_re = r'\d{4}/\d{02}'
+        date_re = r'\d{4}'
         years = self.retrieve_links(self._BASE_URL)
         links = []
         for year in years:
-            print(os.path.join(self._BASE_URL, year) + '/')
-            months = self.retrieve_links(os.path.join(self._BASE_URL, year) + '/')
-            for month in months:
-                links.append(os.path.join(year, month))
+            print(year)
+            if re.match(date_re, year):
+                print(os.path.join(self._BASE_URL, year) + '/')
+                months = self.retrieve_links(os.path.join(self._BASE_URL, year) + '/')
+                for month in months:
+                    links.append(os.path.join(year, month))
 
         return sorted([datetime.strptime(link, '%Y/%b/') for link in links if re.match(date_re, link) is not
                        None])
