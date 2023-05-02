@@ -499,8 +499,11 @@ if __name__ == '__main__':
     main(ssm_data=stacked_ssm_data, evi_data=stacked_evi_data, vpd_data=stacked_vpd_data)
 
     if ssm_data is not None:
-        shutil.rmtree(ssm_dir)
+        print(ssm_dir)
+        # shutil.rmtree(ssm_dir)
     if evi_data is not None:
-        shutil.rmtree(evi_dir)
+        print(evi_dir)
+        # shutil.rmtree(evi_dir)
     if vpd_data is not None:
-        shutil.rmtree(vpd_dir)
+        print(vpd_dir)
+        # shutil.rmtree(vpd_dir)

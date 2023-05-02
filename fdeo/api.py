@@ -501,8 +501,6 @@ class VPD(BaseAPI):
 
             vpd_array = vpd_array * 100000
 
-            # TODO: Up sample to 0.25 deg resolution
-
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
             self._clip_to_conus(vpd_array, output_tiff_file)
@@ -589,22 +587,17 @@ class EVI(BaseAPI):
 
         return output_array
 
-    def create_clipped_time_series(self, output_tiff_file: str, t_start: datetime = None, t_stop: datetime = None):
+    def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
         time_series_dir = self.download_time_series(t_start, t_stop)
 
-        arrays = []
         for file in os.listdir(time_series_dir):
             hdf_file = SD(os.path.join(time_series_dir, file), SDC.READ)
 
             dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
 
-            arrays.append(np.array(dataset.get()))
+            output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
-        stacked_arrays = np.vstack(arrays)
-
-        down_sampled_array = self._down_sample(stacked_arrays)
-
-        self._clip_to_conus(down_sampled_array, output_tiff_file)
+            self._clip_to_conus(dataset.get(), output_tiff_file)
 
         shutil.rmtree(time_series_dir)
 
@@ -624,8 +617,6 @@ class EVI(BaseAPI):
 
         # Define the geotransform array in lat/lon
         geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
-
-        print(geotransform)
 
         tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
 
