@@ -442,9 +442,9 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--credentials', type=str, required=False, dest='credentials',
                         help='Path to file containing username and then password separated by newline for '
                              'https://urs.earthdata.nasa.gov/ ')
-    ssm_data = None
-    vpd_data = None
-    evi_data = None
+    stacked_ssm_data = None
+    stacked_vpd_data = None
+    stacked_evi_data = None
 
     args = parser.parse_args()
     if args.start_date is not None or args.end_date is not None:
@@ -503,12 +503,12 @@ if __name__ == '__main__':
 
     main(ssm_data=stacked_ssm_data, evi_data=stacked_evi_data, vpd_data=stacked_vpd_data)
 
-    if ssm_data is not None:
+    if stacked_ssm_data is not None:
         print(ssm_dir)
         # shutil.rmtree(ssm_dir)
-    if evi_data is not None:
+    if stacked_evi_data is not None:
         print(evi_dir)
         # shutil.rmtree(evi_dir)
-    if vpd_data is not None:
+    if stacked_vpd_data is not None:
         print(vpd_dir)
         # shutil.rmtree(vpd_dir)
