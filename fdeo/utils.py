@@ -10,7 +10,10 @@ def fix_resolution_and_stack(sorted_input_files: List[str], target_resolution_fi
     for file in sorted_input_files:
         data = set_tiff_resolution(file, target_resolution_file)
         month_data.append(data)
-    return np.stack(month_data, axis=2)
+
+    if len(month_data) > 1:
+        return np.stack(month_data, axis=2)
+    return month_data
 
 
 def set_tiff_resolution(input_resolution_path: str, target_resolution_path: str):
