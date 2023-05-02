@@ -314,7 +314,7 @@ class SSM(BaseAPI):
             mean_array = np.mean(stacked_array, axis=0)
             print(mean_array.shape)
 
-            output_tiff_file = os.path.join(output_dir, files[0].replace('.nc4', '.tif'))
+            output_tiff_file = os.path.join(output_dir, os.path.basename(files[0]).replace('.nc4', '.tif'))
 
             self._clip_to_conus(mean_array[0] * 10000, output_tiff_file)
 
@@ -363,7 +363,6 @@ class SSM(BaseAPI):
             # Write the clipped tif file to disk
             with rasterio.open(tiff_file.replace('.tif', '_conus.tif'), "w", **out_meta) as dest:
                 dest.write(out_image)
-                print(out_image, 'Wrote out')
 
 
 class VPD(BaseAPI):
