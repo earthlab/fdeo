@@ -184,7 +184,7 @@ class BaseAPI:
             no_data (int): Value in numpy array that should be treated as no data
             gdal_data_type (int): Gdal data type of raster (see gdal documentation for list of values)
         """
-        rows, columns = numpy_array.shape
+        rows, columns, _ = numpy_array.shape
 
         # create output raster
         output_raster = self._create_raster(output_path, int(columns), int(rows), n_band, gdal_data_type)
@@ -245,7 +245,7 @@ class SSM(BaseAPI):
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
         date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year]
-
+        print(date_range)
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
