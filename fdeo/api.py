@@ -324,8 +324,6 @@ class SSM(BaseAPI):
 
             self._clip_to_conus(mean_array[0] * 10000, output_tiff_file)
 
-        shutil.rmtree(time_series_dir)
-
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 600
         num_cols = 1440
@@ -505,8 +503,6 @@ class VPD(BaseAPI):
 
             self._clip_to_conus(vpd_array, output_tiff_file)
 
-        shutil.rmtree(time_series_dir)
-
 
 class EVI(BaseAPI):
     """
@@ -598,8 +594,6 @@ class EVI(BaseAPI):
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
             self._clip_to_conus(dataset.get(), output_tiff_file)
-
-        shutil.rmtree(time_series_dir)
 
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 3600
