@@ -124,6 +124,8 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
 
     # Build the prediction model. One model for each land cover type
 
+    print('Fireman tot sizes', firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z)
+
     # Set initial dimensions of prediction probabilistic matrix
     fire_pred_ini = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
 
