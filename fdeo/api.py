@@ -415,7 +415,7 @@ class VPD(BaseAPI):
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._dates[-1] if t_stop is None else t_stop
         date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year]
-
+        print(date_range)
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
@@ -426,7 +426,7 @@ class VPD(BaseAPI):
 
             for file in files:
                 match = re.match(self._file_re, file)
-
+                print(match, 'match')
                 if match is not None:
                     date_objs = match.groupdict()
                     file_date = datetime(int(date_objs['year']), int(date_objs['month']), int(date_objs['day']))
@@ -457,8 +457,6 @@ class VPD(BaseAPI):
 
         # Define the geotransform array in lat/lon
         geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
-
-        print(geotransform)
 
         tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
 
@@ -501,6 +499,7 @@ class VPD(BaseAPI):
         for file in os.listdir(time_series_dir):
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
 
+            # TODO: Add constants for scale factors and use them in main function
             vpd_array = vpd_array * 100000
 
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
