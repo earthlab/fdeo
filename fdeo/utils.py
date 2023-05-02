@@ -34,7 +34,11 @@ def set_tiff_resolution(input_resolution_path: str, target_resolution_path: str)
     target_res = gdal.Open(target_resolution_path)
 
     target_res_lons, target_res_lats = get_geo_locations_from_tif(target_res)
-    target_res_data = input_res_interp((target_res_lats, target_res_lons))
+    target_lat_mesh, target_lon_res = np.meshgrid(target_res_lats, target_res_lons, indexing='ji')
+
+    points = np.array([target_lat_mesh.flatten(), target_lon_res.flatten()]).T
+
+    target_res_data = input_res_interp(points).reshape((len(target_res_lats), len(target_res_lons)))
 
     return target_res_data
 
@@ -50,7 +54,7 @@ def get_geo_locations_from_tif(raster):
     # Get geolocation of each data point
     lats = []
     for row in range(raster.RasterYSize):
-        lats.append(y_origin - (row * y_size))
+        lats.append(y_origin + (row * y_size))
 
     lons = []
     for col in range(raster.RasterXSize):
