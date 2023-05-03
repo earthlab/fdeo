@@ -21,7 +21,7 @@ from osgeo import gdal
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
-def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.array = None) -> None:
+def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_prediction_data: np.array) -> None:
     """
     Reads input data and creates smoothed climatology of wildfire burned data. Default training period is 2003-2013.
 
@@ -33,6 +33,8 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
 
     # importing the land cover file (lc1.csv)
     lc1 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'lc1.csv'), delimiter=",")
+    training_data_dimensions = lc1.shape
+    training_data_months = 132
     """
     % ID for each Land cover type
     %1: Lake
@@ -48,35 +50,32 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     %15: ocean
     """
 
-    if ssm_data is None:
-        # soil moisture (sm) data from 2003-2013
-        ssm_data = np.loadtxt(
-            os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv') if ssm_data is None else ssm_data, delimiter=","
-        ).reshape((112, 244, 132))
+    # soil moisture (sm) data from 2003-2013
+    ssm_training_data = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv'), delimiter=","
+    ).reshape((*training_data_dimensions, training_data_months))
 
-    if evi_data is None:
-        # enhanced vegetation index (EVI) data from 2003-2013
-        evi_data = np.loadtxt(
-            os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv') if evi_data is None else evi_data, delimiter=","
-        ).reshape((112, 244, 132))
+    # enhanced vegetation index (EVI) data from 2003-2013
+    evi_training_data = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv'), delimiter=","
+    ).reshape((*training_data_dimensions, training_data_months))
 
-    if vpd_data is None:
-        # vapor pressure deficit (vpd) data from 2003-2013
-        vpd_data = np.loadtxt(
-            os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv') if vpd_data is None else vpd_data, delimiter=","
-        ).reshape((112, 244, 132))
+    # vapor pressure deficit (vpd) data from 2003-2013
+    vpd_training_data = np.loadtxt(
+        os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv'), delimiter=","
+    ).reshape((*training_data_dimensions, training_data_months))
 
     # Fire data from 2003-2013
     firemon_tot_size = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'firemon_tot_size.csv'), delimiter=",").reshape((112, 244, 132))
+        os.path.join(FDEO_DIR, 'data', 'firemon_tot_size.csv'), delimiter=",").reshape((*training_data_dimensions,
+                                                                                        training_data_months))
 
     # calculate the fire climatology for each month
 
     # split the dim sizes for ease
-    mtrxshape = np.shape(firemon_tot_size)
-    firemon_tot_size_x = mtrxshape[0]
-    firemon_tot_size_y = mtrxshape[1]
-    firemon_tot_size_z = mtrxshape[2]
+    firemon_tot_size_x = training_data_dimensions[0]  # lat
+    firemon_tot_size_y = training_data_dimensions[1]  # lon
+    firemon_tot_size_z = training_data_months # months
 
     firemon_tot_size_climatology = np.empty((firemon_tot_size_x, firemon_tot_size_y, 12))
     for i in range(firemon_tot_size_x):
@@ -102,34 +101,60 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     # the "best" drought indicator (DI) and then creates a historical record of
     # probabilistic and categorical wildfire prediction and observation data
 
+    # TODO: Functions
+    # Prepare and define training data sets
     # Deciduous DI
     sc_drought = 1  # month range
-    deciduous_best_ba = data2index(ssm_data, sc_drought)
+    deciduous_best_ba_training = data2index(ssm_training_data, sc_drought)
 
     # Shrubland DI
     sc_drought = 1
-    shrubland_best_ba = data2index(evi_data, sc_drought)
+    shrubland_best_ba_training = data2index(evi_training_data, sc_drought)
 
     # Evergreen DI
     sc_drought = 3
-    vpd_new_drought = data2index_larger(vpd_data, sc_drought)
-    evergreen_best_ba = vpd_new_drought
+    vpd_new_drought = data2index_larger(vpd_training_data, sc_drought)
+    evergreen_best_ba_training = vpd_new_drought
 
     # Herbaceous DI
-    herbaceous_best_ba = vpd_new_drought
+    herbaceous_best_ba_training = vpd_new_drought
 
     # Wetland DI
     sc_drought = 3
-    wetland_best_ba = data2index(ssm_data, sc_drought)
+    wetland_best_ba_training = data2index(ssm_training_data, sc_drought)
+
+
+    # Prepare and define prediction data sets
+    # Deciduous DI
+    sc_drought = 1  # month range
+    deciduous_best_ba_prediction = data2index(ssm_prediction_data, sc_drought)
+
+    # Shrubland DI
+    sc_drought = 1
+    shrubland_best_ba_prediction = data2index(evi_prediction_data, sc_drought)
+
+    # Evergreen DI
+    sc_drought = 3
+    vpd_new_drought = data2index_larger(vpd_prediction_data, sc_drought)
+    evergreen_best_ba_prediction = vpd_new_drought
+
+    # Herbaceous DI
+    herbaceous_best_ba_prediction = vpd_new_drought
+
+    # Wetland DI
+    sc_drought = 3
+    wetland_best_ba_prediction = data2index(ssm_training_data, sc_drought)
 
     # Build the prediction model. One model for each land cover type
 
-    print('Fireman tot sizes', firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z)
-
     # Set initial dimensions of prediction probabilistic matrix
+    prediction_lat_size = ssm_prediction_data.shape[0]
+    prediction_lon_size = ssm_prediction_data.shape[1]
+    prediction_month_size = ssm_prediction_data.shape[2]
+
     # TODO: EV: This is what is actually used to hold the results. Need to change dimensions of this to fit the
     #  input data dimensions
-    fire_pred_ini = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
+    fire_pred_ini = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
 
     # List of land-cover IDs according to below
     # 4: Deciduous
@@ -138,29 +163,52 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     # 8: Herbaceous
     # 10: Wetland
     lctypemat = [4, 5, 7, 8, 10]
-    land_cover_data = [
+    land_cover_training_data = [
         {
-            'data': deciduous_best_ba,
+            'data': deciduous_best_ba_training,
             'index': 4
         },
         {
-            'data': evergreen_best_ba,
+            'data': evergreen_best_ba_training,
             'index': 5
         },
         {
-            'data': shrubland_best_ba,
+            'data': shrubland_best_ba_training,
             'index': 7
         },
         {
-            'data': herbaceous_best_ba,
+            'data': herbaceous_best_ba_training,
             'index': 8
         },
         {
-            'data': wetland_best_ba,
+            'data': wetland_best_ba_training,
             'index': 10
         }
     ]
-    for lc_co, lc_forecast in enumerate(land_cover_data):
+
+    land_cover_prediction_data = [
+        {
+            'data': deciduous_best_ba_prediction,
+            'index': 4
+        },
+        {
+            'data': evergreen_best_ba_prediction,
+            'index': 5
+        },
+        {
+            'data': shrubland_best_ba_prediction,
+            'index': 7
+        },
+        {
+            'data': herbaceous_best_ba_prediction,
+            'index': 8
+        },
+        {
+            'data': wetland_best_ba_prediction,
+            'index': 10
+        }
+    ]
+    for lc_co, lc_forecast in enumerate(land_cover_training_data):
         # First build the regression model for the LC Type initial parameters
         mat = np.empty((2, firemon_tot_size.size), dtype=float)  # Initial array
         m = 0  # Burned area for each LC. 1-5 is each diff one
@@ -236,9 +284,6 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
         obs_res = np.empty((lc_co + 1, 11))
         for i in range(len(varbin)):
             # Model at each bin
-            # TODO: EV: Not using highest power (0 index of gofmat1) coefficient with quadratic term
-            # TODO: EV: Why is this being done. A curve fit to (x, y) data is being used to find new y points with the
-            #  same x's??
             model_res[lc_co][i] = gofmat1[0] * (varbin[i] ** 2) + gofmat1[1] * varbin[i] + gofmat1[2]
 
             # Observation at each bin
@@ -247,14 +292,14 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
         del x
         del y
 
+        prediction_data_dict = land_cover_prediction_data[lc_co]
         # Now build a historical forecast matrix based on the developed regression model for each LC Type
-        # TODO: Change these ranges to fit input data
-        for k in range(4, firemon_tot_size_z):
-            for i in range(firemon_tot_size_x):
-                for j in range(firemon_tot_size_y):
-                    if lc1[i][j] == lc_forecast['index']:
-                        fire_pred_ini[i][j][k] = gofmat1[0] * (lc_forecast['data'][i][j][k - lead] ** 2) + gofmat1[1] \
-                                                 * lc_forecast['data'][i][j][k - lead] + gofmat1[2]
+        for k in range(4, prediction_month_size):
+            for i in range(prediction_lat_size):
+                for j in range(prediction_lon_size):
+                    if lc1[i][j] == prediction_data_dict['index']:
+                        fire_pred_ini[i][j][k] = gofmat1[0] * (prediction_data_dict['data'][i][j][k - lead] ** 2) +\
+                                                 gofmat1[1] * prediction_data_dict['data'][i][j][k - lead] + gofmat1[2]
 
         # Build a correlation matrix and R2 matrix of goodness of fit for all models. Each row represents one LC Type
         forrange = np.shape(model_res)
@@ -287,32 +332,38 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     fire_obs_ini = firemon_tot_size
 
     # subtract prediction and observation from climatology to derive anomalies
-    fire_pred_ini_cate = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
     fire_obs_ini_cate = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
-
     obs_ini_split = np.dsplit(fire_obs_ini, 11)
-    pred_ini_split = np.dsplit(fire_pred_ini, 11)  # TODO: Change these to fit the number of input years
     for i in range(11):
         np.append(fire_obs_ini_cate, obs_ini_split[i] - firemon_tot_size_climatology_smoothed_3, axis=2)
-        np.append(fire_pred_ini_cate, pred_ini_split[i] - firemon_tot_size_climatology_smoothed_3, axis=2)
+
+    # TODO: Need filtering of the same size
+    # Prediction data might not be in 1 year chunks
+    fire_pred_ini_cate = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
+    pred_ini_split = np.dsplit(fire_pred_ini, prediction_month_size)
+    for i in range(prediction_month_size):
+        j = i - (12 * (i // 12))
+        np.append(fire_pred_ini_cate, pred_ini_split[i] - firemon_tot_size_climatology_smoothed_3[j], axis=2)
 
     # Derive bias adjusted observation and prediction probabilities and categorical forecast for the entire time series
     # distribution of prediction and observation come from Gringorten empirical distribution function (empdis function)
+
+
 
     # This section derives CDF of observation and prediction anomalies
     # derive CDF for each land cover type and for each month.
     # Build probabilistic prediction and observation matrices
     val_new_obs_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
-    val_new_pred_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
+    val_new_pred_tot_1 = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
     obs_split = np.dsplit(fire_obs_ini_cate, 132)
-    pred_split = np.dsplit(fire_pred_ini_cate, 132)  # TODO: Change this to fit number of input months
-    dimensions = np.shape(fire_pred_ini_cate)
+    pred_split = np.dsplit(fire_pred_ini_cate, prediction_month_size)
 
-    for k in range(dimensions[0]):
+    # TODO: Change months back
+    for month in range(5):  # TODO: EV: This is not correct. The 0 index being used previously was lon dim, not months
+        print(month)
 
         # Matrix of observation and prediction anomalies for each month
-        val_new_obs = obs_split[k]
-        val_new_pred = pred_split[k]
+        val_new_obs = obs_split[month]
 
         # Derive CDF for each LC type
         for lc_type in lctypemat:
@@ -326,12 +377,10 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
             y = calc_plotting_position(mat)
 
             val_new_obs[idx_lc] = y
-            val_new_pred[idx_lc] = y
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
 
-        val_new_obs_tot_1[k][:][:] = fire_obs_ini_cate[k][:][:]
-        val_new_pred_tot_1[k][:][:] = fire_pred_ini_cate[k][:][:]
+        val_new_obs_tot_1[month][:][:] = fire_obs_ini_cate[month][:][:]
 
         # build a loop for each LC Type
         for lc_type in lctypemat:
@@ -339,9 +388,7 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
             # derive observation and prediction anomalies for each LC Type
             idx_lc = np.equal(lc1, lc_type)  # creates a 1d array that fulfills cond
 
-            # TODO: EV: Should this loop be nested in the above loop which defines val_new_obs?
             mat = val_new_obs[idx_lc]  # picks values from val_new_obs that fulfills cond
-            mat1 = val_new_pred[idx_lc]  # picks values from val_new_pred that fulfills cond
 
             # TODO: Make this into a function
             # Observation CDF 33 percentile threshold for observation time series
@@ -363,6 +410,55 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
             above_no_obs = mat[t12]
             above_no_obs = above_no_obs.flatten()
 
+            # populate categorical observation matrix
+            for i in range((np.shape(fire_obs_ini_cate))[0]):
+                for j in range((np.shape(fire_obs_ini_cate))[1]):
+                    if (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] < below_no_obs).all():
+                        val_new_obs[i][j] = -1
+                    elif (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] > above_no_obs).all():
+                        val_new_obs[i][j] = 1
+                    elif (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] >= below_no_obs).all() & (
+                            val_new_obs[i][j] <= above_no_obs).all():
+                        val_new_obs[i][j] = 0
+
+    # TODO: Save out: fire_obs_ini_cate, val_new_obs_tot_1, val_new_obs
+    np.savetxt(fire_obs_ini_cate, f'fire_obs_ini_cate{fire_obs_ini_cate.shape}.txt')
+    np.savetxt(val_new_pred_tot_1, f'val_new_obs_tot_1{val_new_obs_tot_1.shape}.txt')
+    np.savetxt(val_new_obs, f'val_new_obs{val_new_obs.shape}.txt')
+
+    for month in range(prediction_month_size):  # TODO: EV: This is not correct. The 0 index being used previously was lon dim, not months
+        print(month)
+
+        # Matrix of observation and prediction anomalies for each month
+        val_new_obs = obs_split[month]
+        val_new_pred = pred_split[month]
+
+        # Derive CDF for each LC type
+        for lc_type in lctypemat:
+
+            # Derive observation and prediction anomalies for each LC Type
+            idx_lc = np.equal(lc1, lc_type)  # Creates a 1d array that fulfills cond
+
+            mat = val_new_obs[idx_lc]  # Picks values from val_new_obs that fulfills cond
+
+            # Observation CDF
+            y = calc_plotting_position(mat)
+            val_new_pred[idx_lc] = y
+
+        # Build matrix of CDFs (probabilistic prediction and observation matrices)
+        val_new_pred_tot_1[month][:][:] = fire_pred_ini_cate[month][:][:]
+
+        # build a loop for each LC Type
+        for lc_type in lctypemat:
+
+            # derive observation and prediction anomalies for each LC Type
+            idx_lc = np.equal(lc1, lc_type)  # creates a 1d array that fulfills cond
+
+            # TODO: EV: Should this loop be nested in the above loop which defines val_new_obs?
+            mat1 = val_new_pred[idx_lc]  # picks values from val_new_pred that fulfills cond
+
+            # TODO: Make this into a function
+
             # prediction CDF
             # 33 percentile threshold for prediction time series
             y1 = calc_plotting_position(mat1)
@@ -383,17 +479,6 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
             above_no_pred = mat1[t12]
             above_no_pred = above_no_pred.flatten()
 
-            # populate categorical observation matrix
-            for i in range((np.shape(fire_obs_ini_cate))[0]):
-                for j in range((np.shape(fire_obs_ini_cate))[1]):
-                    if (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] < below_no_obs).all():
-                        val_new_obs[i][j] = -1
-                    elif (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] > above_no_obs).all():
-                        val_new_obs[i][j] = 1
-                    elif (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] >= below_no_obs).all() & (
-                            val_new_obs[i][j] <= above_no_obs).all():
-                        val_new_obs[i][j] = 0
-
             # populate categorical prediction matrix
             for i in range((np.shape(fire_pred_ini_cate))[0]):
                 for j in range((np.shape(fire_pred_ini_cate))[1]):
@@ -408,6 +493,10 @@ def main(ssm_data: np.array = None, evi_data: np.array = None, vpd_data: np.arra
     # FIG 6 abd 7 of the paper for aug 2013
 
     # TODO: Change this to match the input parameters
+
+    print('vno', val_new_obs.shape)
+    print('vnp', val_new_pred.shape)
+
 
     a = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     # August for title of the plot
@@ -452,80 +541,100 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--credentials', type=str, required=False, dest='credentials',
                         help='Path to file containing username and then password separated by newline for '
                              'https://urs.earthdata.nasa.gov/ ')
+
+    parser.add_argument('--ssm_test', type=str, required=False,
+                        help='Path to file containing username and then password separated by newline for '
+                             'https://urs.earthdata.nasa.gov/ ')
+    parser.add_argument('--evi_test', type=str, required=False,
+                        help='Path to file containing username and then password separated by newline for '
+                             'https://urs.earthdata.nasa.gov/ ')
+    parser.add_argument('--vpd_test', type=str, required=False,
+                        help='Path to file containing username and then password separated by newline for '
+                             'https://urs.earthdata.nasa.gov/ ')
+
     stacked_ssm_data = None
     stacked_vpd_data = None
     stacked_evi_data = None
 
     args = parser.parse_args()
-    if args.start_date is not None or args.end_date is not None:
-        username = args.username
-        password = args.password
-        if args.credentials is not None:
-            with open(args.credentials, 'r') as f:
-                lines = f.readlines()
-                username = lines[0].strip('\n').strip(' ')
-                password = lines[1].strip('\n').strip(' ')
+    # if args.start_date is not None or args.end_date is not None:
+    #     username = args.username
+    #     password = args.password
+    #     if args.credentials is not None:
+    #         with open(args.credentials, 'r') as f:
+    #             lines = f.readlines()
+    #             username = lines[0].strip('\n').strip(' ')
+    #             password = lines[1].strip('\n').strip(' ')
+    #
+    #     if username is None or password is None:
+    #         raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
+    #                          ' or -u and -p arguments if you would like to download from the API')
+    #
+    #     ssm = SSM(username=username, password=password)
+    #     evi = EVI(username=username, password=password)
+    #     vpd = VPD(username=username, password=password)
+    #
+    #     tempdir = tempfile.mkdtemp(prefix='fdeo')
+    #     ssm_dir = os.path.join(tempdir, 'ssm')
+    #     evi_dir = os.path.join(tempdir, 'evi')
+    #     vpd_dir = os.path.join(tempdir, 'vpd')
+    #     os.makedirs(ssm_dir)
+    #     os.makedirs(evi_dir)
+    #     os.makedirs(vpd_dir)
+    #     start_date = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date is not None else None
+    #     end_date = datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date is not None else None
+    #     ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
+    #     evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
+    #     vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
+    #
+    #     # Sample the EVI and VPD data to the SSM 0.25 deg spatial resolution
+    #     ssm_sample_file = os.path.join(ssm_dir, os.listdir(ssm_dir)[0])
+    #
+    #     sorted_evi_files = evi.sort_tif_files(evi_dir)
+    #     sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
+    #
+    #     print(sorted_evi_files)
+    #     print(sorted_vpd_files)
+    #     print(ssm.sort_tif_files(ssm_dir))
+    #
+    #     stacked_evi_data = stack_raster_months(sorted_evi_files)
+    #     stacked_vpd_data = stack_raster_months(sorted_vpd_files, scale_factor=VPD_SCALE_FACTOR)
+    #
+    #     print('stacked')
+    #
+    #     ssm_month_data = []
+    #     for ssm_file in ssm.sort_tif_files(ssm_dir):
+    #         ssm_file_obj = gdal.Open(ssm_file)
+    #         ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray() / SSM_SCALE_FACTOR)
+    #
+    #     stacked_ssm_data = stack_arrays(ssm_month_data)
+    #
+    #     print(stacked_ssm_data.shape)
+    #     print(stacked_evi_data.shape)
+    #     print(stacked_vpd_data.shape)
+    #
+    #     # TODO: Just for testing
+    #     ssm._numpy_array_to_raster('ssm_test.tif', stacked_ssm_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
+    #     ssm._numpy_array_to_raster('evi_test.tif', stacked_evi_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
+    #     ssm._numpy_array_to_raster('vpd_test.tif', stacked_vpd_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
+    print('Opening')
+    stacked_ssm_data = gdal.Open(args.ssm_test)
+    stacked_ssm_data = stacked_ssm_data.GetRasterBand(1).ReadAsArray().reshape((112, 244, 1))
 
-        if username is None or password is None:
-            raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
-                             ' or -u and -p arguments if you would like to download from the API')
+    stacked_evi_data = gdal.Open(args.evi_test)
+    stacked_evi_data = stacked_evi_data.GetRasterBand(1).ReadAsArray().reshape((112, 244, 1))
+    stacked_vpd_data = gdal.Open(args.vpd_test)
+    stacked_vpd_data = stacked_vpd_data.GetRasterBand(1).ReadAsArray().reshape((112, 244, 1))
+    print('Opened')
 
-        ssm = SSM(username=username, password=password)
-        evi = EVI(username=username, password=password)
-        vpd = VPD(username=username, password=password)
+    main(ssm_prediction_data=stacked_ssm_data, evi_prediction_data=stacked_evi_data, vpd_prediction_data=stacked_vpd_data)
 
-        tempdir = tempfile.mkdtemp(prefix='fdeo')
-        ssm_dir = os.path.join(tempdir, 'ssm')
-        evi_dir = os.path.join(tempdir, 'evi')
-        vpd_dir = os.path.join(tempdir, 'vpd')
-        os.makedirs(ssm_dir)
-        os.makedirs(evi_dir)
-        os.makedirs(vpd_dir)
-        start_date = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date is not None else None
-        end_date = datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date is not None else None
-        #ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
-        evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
-        #vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
-
-        # Sample the EVI and VPD data to the SSM 0.25 deg spatial resolution
-        #ssm_sample_file = os.path.join(ssm_dir, os.listdir(ssm_dir)[0])
-
-        sorted_evi_files = evi.sort_tif_files(evi_dir)
-        #sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
-
-        print(sorted_evi_files)
-        #print(sorted_vpd_files)
-        print(ssm.sort_tif_files(ssm_dir))
-
-        stacked_evi_data = stack_raster_months(sorted_evi_files)
-        #stacked_vpd_data = stack_raster_months(sorted_vpd_files, scale_factor=VPD_SCALE_FACTOR)
-
-        print('stacked')
-
-        # ssm_month_data = []
-        # for ssm_file in ssm.sort_tif_files(ssm_dir):
-        #     ssm_file_obj = gdal.Open(ssm_file)
-        #     ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray() / SSM_SCALE_FACTOR)
-        #
-        # stacked_ssm_data = stack_arrays(ssm_month_data)
-
-        #print(stacked_ssm_data.shape)
-        print(stacked_evi_data.shape)
-        #print(stacked_vpd_data.shape)
-
-        # TODO: Just for testing
-        #ssm._numpy_array_to_raster('ssm_test.tif', stacked_ssm_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
-        ssm._numpy_array_to_raster('evi_test.tif', stacked_evi_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
-        #ssm._numpy_array_to_raster('vpd_test.tif', stacked_vpd_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
-
-    main(ssm_data=stacked_ssm_data, evi_data=stacked_evi_data, vpd_data=stacked_vpd_data)
-
-    if stacked_ssm_data is not None:
-        print(ssm_dir)
-        # shutil.rmtree(ssm_dir)
-    if stacked_evi_data is not None:
-        print(evi_dir)
-        # shutil.rmtree(evi_dir)
-    if stacked_vpd_data is not None:
-        print(vpd_dir)
-        # shutil.rmtree(vpd_dir)
+    # if stacked_ssm_data is not None:
+    #     print(ssm_dir)
+    #     # shutil.rmtree(ssm_dir)
+    # if stacked_evi_data is not None:
+    #     print(evi_dir)
+    #     # shutil.rmtree(evi_dir)
+    # if stacked_vpd_data is not None:
+    #     print(vpd_dir)
+    #     # shutil.rmtree(vpd_dir)

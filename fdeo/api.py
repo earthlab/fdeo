@@ -38,7 +38,7 @@ class BaseAPI:
     Defines all the attributes and methods common to the child APIs.
     """
     PROJ_DIR = os.path.dirname(os.path.dirname(__file__))
-    LAND_COVER_GEOTRANSFORM = [-126.75, 0.25, 0, 51.75, 0, -0.25]
+    LAND_COVER_GEOTRANSFORM = [-126.75, 0.25, 0, 23.875, 0, 0.25]
     LAND_COVER_X_SIZE = 244
     LAND_COVER_Y_SIZE = 112
 
@@ -443,7 +443,7 @@ class VPD(BaseAPI):
         lat_res = (lat_max - lat_min) / num_rows
 
         # Define the geotransform array in lat/lon
-        input_geotransform = [lon_min, lon_res, 0, lat_min, 0, lat_res]
+        input_geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
 
         # Interpolate input data and then sample each point in land cover
         fixed_to_land_cover = set_tiff_resolution(input_array, input_geotransform, num_cols, num_rows,
@@ -559,9 +559,6 @@ class EVI(BaseAPI):
         num_rows = 3600
         num_cols = 7200
 
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-
         lon_min, lat_max = -180, 90
         lon_max, lat_min = 180, -90
 
@@ -570,7 +567,9 @@ class EVI(BaseAPI):
         lat_res = (lat_max - lat_min) / num_rows
 
         # Define the geotransform array in lat/lon
-        input_geotransform = [lon_min, lon_res, 0, lat_min, 0, lat_res]
+        input_geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+
+        #_ = self._numpy_array_to_raster(output_tif_file, input_array, input_geotransform, 'wgs84')
 
         # Interpolate input data and then sample each point in land cover
         fixed_to_land_cover = set_tiff_resolution(input_array, input_geotransform, num_cols, num_rows,

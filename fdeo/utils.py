@@ -32,8 +32,11 @@ def set_tiff_resolution(input_res_array: str, input_res_geotransform: List[float
     # Lats and lons must be ascending. For most data, the GeoTransform defines the top left corner of the data and thus
     # the lats will be descending. If this is the case, sort the lats and flip the data about the "x" axis
     if input_res_lats[0] > input_res_lats[1]:
+        print('Flipping')
         input_res_lats = sorted(input_res_lats)
-    input_res_array = np.flip(input_res_array, axis=1)  # Flip about the 'lon' axis for testing
+        input_res_array = np.flip(input_res_array, axis=0)  # Flip about the 'lon' axis for testing
+
+    print(input_res_array.shape, 'ira')
 
     print(input_res_lats[0], input_res_lats[-1], input_res_lons[0], input_res_lons[-1])
 
