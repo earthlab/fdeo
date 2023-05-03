@@ -8,7 +8,10 @@ import os
 def stack_raster_months(sorted_input_files: List[str], scale_factor: int = 1):
     month_data = []
     for file in sorted_input_files:
-        data = gdal.Open(file).GetRasterBand(1).ReadAsArray()
+        raster = gdal.Open(file)
+        print('opened raster')
+        data = raster.GetRasterBand(1).ReadAsArray()
+        print('got data')
         month_data.append(data / scale_factor)
 
     return stack_arrays(month_data)

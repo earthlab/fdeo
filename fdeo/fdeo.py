@@ -500,6 +500,8 @@ if __name__ == '__main__':
         stacked_evi_data = stack_raster_months(sorted_evi_files)
         stacked_vpd_data = stack_raster_months(sorted_vpd_files, scale_factor=VPD_SCALE_FACTOR)
 
+        print('stacked')
+
         ssm_month_data = []
         for ssm_file in ssm.sort_tif_files(ssm_dir):
             ssm_file_obj = gdal.Open(ssm_file)
