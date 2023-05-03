@@ -71,20 +71,20 @@ def get_geo_locations_from_tif(raster):
     return lons, lats
 
 
-def get_geo_locations_from_geotransform(geo_transform, x_size: int, y_size: int):
+def get_geo_locations_from_geotransform(geo_transform, num_cols: int, num_rows: int):
     # Get geolocation information
-    x_size = geo_transform[1]
-    y_size = geo_transform[5]
+    x_res = geo_transform[1]
+    y_res = geo_transform[5]
     x_origin = geo_transform[0]
     y_origin = geo_transform[3]
 
     # Get geolocation of each data point
     lats = []
-    for row in range(y_size):
-        lats.append(y_origin + (row * y_size))
+    for row in range(num_rows):
+        lats.append(y_origin + (row * y_res))
 
     lons = []
-    for col in range(x_size):
-        lons.append(x_origin + (col * x_size))
+    for col in range(num_cols):
+        lons.append(x_origin + (col * x_res))
 
     return lons, lats
