@@ -483,40 +483,40 @@ if __name__ == '__main__':
         os.makedirs(vpd_dir)
         start_date = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date is not None else None
         end_date = datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date is not None else None
-        ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
+        #ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
         evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
-        vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
+        #vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
 
         # Sample the EVI and VPD data to the SSM 0.25 deg spatial resolution
-        ssm_sample_file = os.path.join(ssm_dir, os.listdir(ssm_dir)[0])
+        #ssm_sample_file = os.path.join(ssm_dir, os.listdir(ssm_dir)[0])
 
         sorted_evi_files = evi.sort_tif_files(evi_dir)
-        sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
+        #sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
 
         print(sorted_evi_files)
-        print(sorted_vpd_files)
+        #print(sorted_vpd_files)
         print(ssm.sort_tif_files(ssm_dir))
 
         stacked_evi_data = stack_raster_months(sorted_evi_files)
-        stacked_vpd_data = stack_raster_months(sorted_vpd_files, scale_factor=VPD_SCALE_FACTOR)
+        #stacked_vpd_data = stack_raster_months(sorted_vpd_files, scale_factor=VPD_SCALE_FACTOR)
 
         print('stacked')
 
-        ssm_month_data = []
-        for ssm_file in ssm.sort_tif_files(ssm_dir):
-            ssm_file_obj = gdal.Open(ssm_file)
-            ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray() / SSM_SCALE_FACTOR)
+        # ssm_month_data = []
+        # for ssm_file in ssm.sort_tif_files(ssm_dir):
+        #     ssm_file_obj = gdal.Open(ssm_file)
+        #     ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray() / SSM_SCALE_FACTOR)
+        #
+        # stacked_ssm_data = stack_arrays(ssm_month_data)
 
-        stacked_ssm_data = stack_arrays(ssm_month_data)
-
-        print(stacked_ssm_data.shape)
+        #print(stacked_ssm_data.shape)
         print(stacked_evi_data.shape)
-        print(stacked_vpd_data.shape)
+        #print(stacked_vpd_data.shape)
 
         # TODO: Just for testing
-        ssm._numpy_array_to_raster('ssm_test.tif', stacked_ssm_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
+        #ssm._numpy_array_to_raster('ssm_test.tif', stacked_ssm_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
         ssm._numpy_array_to_raster('evi_test.tif', stacked_evi_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
-        ssm._numpy_array_to_raster('vpd_test.tif', stacked_vpd_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
+        #ssm._numpy_array_to_raster('vpd_test.tif', stacked_vpd_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
 
     main(ssm_data=stacked_ssm_data, evi_data=stacked_evi_data, vpd_data=stacked_vpd_data)
 
