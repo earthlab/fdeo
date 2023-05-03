@@ -33,7 +33,7 @@ def set_tiff_resolution(input_res_array: str, input_res_geotransform: List[float
     # the lats will be descending. If this is the case, sort the lats and flip the data about the "x" axis
     if input_res_lats[0] > input_res_lats[1]:
         input_res_lats = sorted(input_res_lats)
-        input_res_array = np.flip(input_res_array, axis=1)  # Flip about the 'lon' axis
+    input_res_array = np.flip(input_res_array, axis=1)  # Flip about the 'lon' axis for testing
 
     print(input_res_lats[0], input_res_lats[-1], input_res_lons[0], input_res_lons[-1])
 
