@@ -380,6 +380,8 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             # Observation CDF
             y = calc_plotting_position(mat)
             print(y.shape)
+            print(y)
+            print(set(y.flatten()))
 
             val_new_obs[idx_lc] = y
 
