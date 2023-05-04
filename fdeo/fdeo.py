@@ -402,8 +402,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             t4 = t1 + t3
             t5 = y1 - t4
             t6 = abs(t5)
-            t7 = np.where(t6 == np.min(t6))
-            print(t7.shape, mat.shape)
+            t7 = np.where(t6 == np.min(t6))[0]
             below_no_obs = mat[t7]
             below_no_obs = below_no_obs.flatten()
             # 66 percentile threshold for observation time series
