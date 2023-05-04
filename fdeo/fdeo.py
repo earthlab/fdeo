@@ -365,7 +365,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
         print(month)
 
         # Matrix of observation and prediction anomalies for each month
-        val_new_obs = obs_split[month]
+        val_new_obs = np.squeeze(obs_split[month])
 
         # Derive CDF for each LC type
         for lc_type in lctypemat:
@@ -413,8 +413,8 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             above_no_obs = above_no_obs.flatten()
 
             # populate categorical observation matrix
-            for i in range((np.shape(fire_obs_ini_cate))[0]):
-                for j in range((np.shape(fire_obs_ini_cate))[1]):
+            for i in range(np.shape(fire_obs_ini_cate)[0]):
+                for j in range(np.shape(fire_obs_ini_cate)[1]):
                     if first_lc:
                         first_lc = False
                     else:
@@ -441,8 +441,8 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
         print(month)
 
         # Matrix of observation and prediction anomalies for each month
-        val_new_obs = obs_split[month]
-        val_new_pred = pred_split[month]
+        val_new_obs = np.squeeze(obs_split[month])
+        val_new_pred = np.squeeze(pred_split[month])
 
         # Derive CDF for each LC type
         for lc_type in lctypemat:
@@ -504,7 +504,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
                             val_new_pred[i][j] <= above_no_pred).all():
                         val_new_pred[i][j] = 0
 
-        val_new_obs_prob_1[:][:][month] = val_new_obs
+        val_new_pred_cat_1[:][:][month] = val_new_obs
 
     # FIG 6 abd 7 of the paper for aug 2013
 
