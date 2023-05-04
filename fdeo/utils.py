@@ -117,6 +117,6 @@ def plot_file(input_file, months: int):
     #val = np.rot90(val.T)
     # fig, (fig1) = plt.subplots(1, 1)
     # fig1.pcolor(val)
-    #cmap = ListedColormap(['red', 'green', 'blue'])
-    plt.imshow(np.squeeze(val), cmap='gray')
+    cmap = ListedColormap(['red', 'green', 'blue'])
+    plt.imshow(np.squeeze(val), cmap=cmap)
     plt.show()
