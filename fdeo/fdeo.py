@@ -409,7 +409,8 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             t9 = t4 + t3
             t10 = y1 - t9
             t11 = abs(t10)
-            t12 = np.where(t11 == np.min(t11))
+            t12 = np.where(t11 == np.min(t11))[0]
+            print(t12)
             above_no_obs = mat[t12]
             above_no_obs = above_no_obs.flatten()
 
@@ -433,9 +434,12 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
         val_new_obs_cat_1[:, :, month] = val_new_obs
 
-    np.savetxt(f'fire_obs_ini_cate{fire_obs_ini_cate.shape}.txt', fire_obs_ini_cate)
-    np.savetxt(f'val_new_obs_tot_1{val_new_obs_prob_1.shape}.txt', val_new_obs_prob_1)
-    np.savetxt(f'val_new_obs{val_new_obs_cat_1.shape}.txt', val_new_obs_cat_1)
+    np.savetxt(f'fire_obs_ini_cate{fire_obs_ini_cate.shape}.txt', fire_obs_ini_cate.reshape(
+        -1, fire_obs_ini_cate.shape[-1]))
+    np.savetxt(f'val_new_obs_tot_1{val_new_obs_prob_1.shape}.txt', val_new_obs_prob_1.reshape(
+        -1, val_new_obs_prob_1.shape[-1]))
+    np.savetxt(f'val_new_obs{val_new_obs_cat_1.shape}.txt', val_new_obs_cat_1.reshape(
+        -1, val_new_obs_cat_1.shape[-1]))
 
     first_lc = True
     for month in range(prediction_month_size):
@@ -455,7 +459,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
             # Observation CDF
             y = calc_plotting_position(mat)
-            val_new_pred[idx_lc] = y
+            val_new_pred[idx_lc] = y.flatten()
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
         val_new_pred_prob_1[:, :, month] = fire_pred_ini_cate[:, :, month]
@@ -471,20 +475,22 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             # prediction CDF
             # 33 percentile threshold for prediction time series
             y1 = calc_plotting_position(mat1)
+            y1 = y1.flatten()
             t1 = np.min(y1)
             t2 = np.max(y1)
             t3 = (t2 - t1) / 3
             t4 = t1 + t3
             t5 = y1 - t4
             t6 = abs(t5)
-            t7 = np.where(t6 == min(t6))
+            t7 = np.where(t6 == min(t6))[0]
             below_no_pred = mat1[t7]
             below_no_pred = below_no_pred.flatten()
             # 66 percentile threshold for prediction time series
             t9 = t4 + t3
             t10 = y1 - t9
             t11 = abs(t10)
-            t12 = np.where(t11 == np.min(t11))
+            t12 = np.where(t11 == np.min(t11))[0]
+            print(t12)
             above_no_pred = mat1[t12]
             above_no_pred = above_no_pred.flatten()
 
