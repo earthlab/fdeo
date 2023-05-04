@@ -436,9 +436,9 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
     np.savetxt(f'fire_obs_ini_cate{fire_obs_ini_cate.shape}.txt', fire_obs_ini_cate.reshape(
         -1, fire_obs_ini_cate.shape[-1]))
-    np.savetxt(f'val_new_obs_tot_1{val_new_obs_prob_1.shape}.txt', val_new_obs_prob_1.reshape(
+    np.savetxt(f'val_new_obs_prob_1{val_new_obs_prob_1.shape}.txt', val_new_obs_prob_1.reshape(
         -1, val_new_obs_prob_1.shape[-1]))
-    np.savetxt(f'val_new_obs{val_new_obs_cat_1.shape}.txt', val_new_obs_cat_1.reshape(
+    np.savetxt(f'val_new_obs_cat{val_new_obs_cat_1.shape}.txt', val_new_obs_cat_1.reshape(
         -1, val_new_obs_cat_1.shape[-1]))
 
     first_lc = True
@@ -503,15 +503,20 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
                         # Logically AND all of the lc type predictions by skipping if already -1 or 0
                         if (lc1[i][j] == lc_type) and val_new_pred[i][j] in [-1, 0]:
                             continue
-                    if (lc1[i][j] == lc_type) & (val_new_pred[i][j][0] < below_no_pred).all():
+                    if (lc1[i][j] == lc_type) & (val_new_pred[i][j] < below_no_pred).all():
                         val_new_pred[i][j] = -1
-                    elif (lc1[i][j] == lc_type) & (val_new_pred[i][j][0] > above_no_pred).all():
+                    elif (lc1[i][j] == lc_type) & (val_new_pred[i][j] > above_no_pred).all():
                         val_new_pred[i][j] = 1
-                    elif (lc1[i][j] == lc_type) & (val_new_pred[i][j][0] >= below_no_pred).all() & (
+                    elif (lc1[i][j] == lc_type) & (val_new_pred[i][j] >= below_no_pred).all() & (
                             val_new_pred[i][j] <= above_no_pred).all():
                         val_new_pred[i][j] = 0
 
         val_new_pred_cat_1[:, :, month] = val_new_obs
+
+    np.savetxt(f'val_new_pred_prob_1{val_new_pred_prob_1.shape}.txt', val_new_pred_prob_1.reshape(
+        -1, val_new_pred_prob_1.shape[-1]))
+    np.savetxt(f'val_new_pred_cat{val_new_pred_cat_1.shape}.txt', val_new_pred_cat_1.reshape(
+        -1, val_new_pred_cat_1.shape[-1]))
 
     # FIG 6 abd 7 of the paper for aug 2013
 
