@@ -372,8 +372,6 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
             # Derive observation and prediction anomalies for each LC Type
             idx_lc = np.equal(lc1, lc_type)  # Creates a 1d array that fulfills cond
-            print(idx_lc.shape)
-            print(idx_lc)
 
             mat = val_new_obs[idx_lc]  # Picks values from val_new_obs that fulfills cond
 
@@ -397,6 +395,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             # TODO: Make this into a function
             # Observation CDF 33 percentile threshold for observation time series
             y1 = calc_plotting_position(mat)
+            y1 = y1.flatten()
             t1 = np.min(y1)
             t2 = np.max(y1)
             t3 = (t2 - t1) / 3
@@ -404,6 +403,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             t5 = y1 - t4
             t6 = abs(t5)
             t7 = np.where(t6 == np.min(t6))
+            print(t7.shape, mat.shape)
             below_no_obs = mat[t7]
             below_no_obs = below_no_obs.flatten()
             # 66 percentile threshold for observation time series
