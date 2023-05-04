@@ -381,7 +381,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             val_new_obs[idx_lc] = y
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
-        val_new_obs_prob_1[month][:][:] = fire_obs_ini_cate[month][:][:]
+        val_new_obs_prob_1[:][:][month] = fire_obs_ini_cate[:][:][month]
 
         # build a loop for each LC Type
         first_lc = True
@@ -430,7 +430,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
                             val_new_obs[i][j] <= above_no_obs).all():
                         val_new_obs[i][j] = 0
 
-        val_new_obs_cat_1[month][:][:] = val_new_obs
+        val_new_obs_cat_1[:][:][month] = val_new_obs
 
     np.savetxt(f'fire_obs_ini_cate{fire_obs_ini_cate.shape}.txt', fire_obs_ini_cate)
     np.savetxt(f'val_new_obs_tot_1{val_new_obs_prob_1.shape}.txt', val_new_obs_prob_1)
@@ -457,7 +457,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             val_new_pred[idx_lc] = y
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
-        val_new_pred_prob_1[month][:][:] = fire_pred_ini_cate[month][:][:]
+        val_new_pred_prob_1[:][:][month] = fire_pred_ini_cate[:][:][month]
 
         # build a loop for each LC Type
         for lc_type in lctypemat:
@@ -504,7 +504,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
                             val_new_pred[i][j] <= above_no_pred).all():
                         val_new_pred[i][j] = 0
 
-        val_new_obs_prob_1[month][:][:] = val_new_obs
+        val_new_obs_prob_1[:][:][month] = val_new_obs
 
     # FIG 6 abd 7 of the paper for aug 2013
 
