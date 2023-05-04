@@ -381,7 +381,11 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             val_new_obs[idx_lc] = y.flatten()
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
-        val_new_obs_prob_1[:, :, month] = fire_obs_ini_cate[:, :, month]
+        # TODO: Why not use val_new_pred
+        # val_new_obs_prob_1[:, :, month] = fire_obs_ini_cate[:, :, month]
+        val_new_obs_prob_1[:, :, month] = val_new_obs
+
+        val_new_obs = np.squeeze(obs_split[month])
 
         # build a loop for each LC Type
         first_lc = True
@@ -462,7 +466,12 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             val_new_pred[idx_lc] = y.flatten()
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
-        val_new_pred_prob_1[:, :, month] = fire_pred_ini_cate[:, :, month]
+        # TODO: Why not use val_new_pred
+        # val_new_pred_prob_1[:, :, month] = fire_pred_ini_cate[:, :, month]
+        val_new_pred_prob_1[:, :, month] = val_new_pred
+
+        val_new_pred = np.squeeze(pred_split[month])
+        val_new_obs = np.squeeze(obs_split[month])
 
         # build a loop for each LC Type
         for lc_type in lctypemat:

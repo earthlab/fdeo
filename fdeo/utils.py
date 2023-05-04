@@ -1,8 +1,13 @@
 from typing import List
-from osgeo import gdal
+#from osgeo import gdal
 from scipy.interpolate import RegularGridInterpolator
 import numpy as np
 import os
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+
+
+FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
 def stack_raster_months(sorted_input_files: List[str], scale_factor: int = 1):
@@ -94,3 +99,24 @@ def get_geo_locations_from_geotransform(geo_transform, num_cols: int, num_rows: 
         lons.append(x_origin + (col * x_res))
 
     return lons, lats
+
+
+def plot_file(input_file, months: int):
+    lc1 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'lc1.csv'), delimiter=",")
+
+    val = np.loadtxt(input_file)
+
+    # reshape the loaded array back to its original shape
+    val = val.reshape((112, 244, months))
+
+    for i in range(112):
+        for j in range(244):
+            if (lc1[i][j] != 4) & (lc1[i][j] != 5) & (lc1[i][j] != 7) & (lc1[i][j] != 8) & (lc1[i][j] != 10):
+                val[i][j] = float("NaN")
+
+    #val = np.rot90(val.T)
+    # fig, (fig1) = plt.subplots(1, 1)
+    # fig1.pcolor(val)
+    #cmap = ListedColormap(['red', 'green', 'blue'])
+    plt.imshow(np.squeeze(val), cmap='gray')
+    plt.show()
