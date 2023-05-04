@@ -353,8 +353,10 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
     # This section derives CDF of observation and prediction anomalies
     # derive CDF for each land cover type and for each month.
     # Build probabilistic prediction and observation matrices
-    val_new_obs_tot_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
-    val_new_pred_tot_1 = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
+    val_new_obs_prob_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
+    val_new_pred_prob_1 = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
+    val_new_obs_cat_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
+    val_new_pred_cat_1 = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
     obs_split = np.dsplit(fire_obs_ini_cate, 132)
     pred_split = np.dsplit(fire_pred_ini_cate, prediction_month_size)
 
@@ -379,10 +381,10 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             val_new_obs[idx_lc] = y
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
-
-        val_new_obs_tot_1[month][:][:] = fire_obs_ini_cate[month][:][:]
+        val_new_obs_prob_1[month][:][:] = fire_obs_ini_cate[month][:][:]
 
         # build a loop for each LC Type
+        first_lc = True
         for lc_type in lctypemat:
 
             # derive observation and prediction anomalies for each LC Type
@@ -413,20 +415,29 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             # populate categorical observation matrix
             for i in range((np.shape(fire_obs_ini_cate))[0]):
                 for j in range((np.shape(fire_obs_ini_cate))[1]):
-                    if (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] < below_no_obs).all():
+                    if first_lc:
+                        first_lc = False
+                    else:
+                        # Logically AND all of the lc type predictions by skipping if already -1 or 0
+                        if (lc1[i][j] == lc_type) and val_new_obs[i][j] in [-1, 0]:
+                            continue
+
+                    if (lc1[i][j] == lc_type) and (val_new_obs[i][j][0] < below_no_obs).all():
                         val_new_obs[i][j] = -1
-                    elif (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] > above_no_obs).all():
+                    elif (lc1[i][j] == lc_type) and (val_new_obs[i][j][0] > above_no_obs).all():
                         val_new_obs[i][j] = 1
-                    elif (lc1[i][j] == lc_type) & (val_new_obs[i][j][0] >= below_no_obs).all() & (
+                    elif (lc1[i][j] == lc_type) and (val_new_obs[i][j][0] >= below_no_obs).all() and (
                             val_new_obs[i][j] <= above_no_obs).all():
                         val_new_obs[i][j] = 0
 
-    # TODO: Save out: fire_obs_ini_cate, val_new_obs_tot_1, val_new_obs
-    np.savetxt(fire_obs_ini_cate, f'fire_obs_ini_cate{fire_obs_ini_cate.shape}.txt')
-    np.savetxt(val_new_pred_tot_1, f'val_new_obs_tot_1{val_new_obs_tot_1.shape}.txt')
-    np.savetxt(val_new_obs, f'val_new_obs{val_new_obs.shape}.txt')
+        val_new_obs_cat_1[month][:][:] = val_new_obs
 
-    for month in range(prediction_month_size):  # TODO: EV: This is not correct. The 0 index being used previously was lon dim, not months
+    np.savetxt(f'fire_obs_ini_cate{fire_obs_ini_cate.shape}.txt', fire_obs_ini_cate)
+    np.savetxt(f'val_new_obs_tot_1{val_new_obs_prob_1.shape}.txt', val_new_obs_prob_1)
+    np.savetxt(f'val_new_obs{val_new_obs_cat_1.shape}.txt', val_new_obs_cat_1)
+
+    first_lc = True
+    for month in range(prediction_month_size):
         print(month)
 
         # Matrix of observation and prediction anomalies for each month
@@ -446,7 +457,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             val_new_pred[idx_lc] = y
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
-        val_new_pred_tot_1[month][:][:] = fire_pred_ini_cate[month][:][:]
+        val_new_pred_prob_1[month][:][:] = fire_pred_ini_cate[month][:][:]
 
         # build a loop for each LC Type
         for lc_type in lctypemat:
@@ -454,10 +465,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             # derive observation and prediction anomalies for each LC Type
             idx_lc = np.equal(lc1, lc_type)  # creates a 1d array that fulfills cond
 
-            # TODO: EV: Should this loop be nested in the above loop which defines val_new_obs?
             mat1 = val_new_pred[idx_lc]  # picks values from val_new_pred that fulfills cond
-
-            # TODO: Make this into a function
 
             # prediction CDF
             # 33 percentile threshold for prediction time series
@@ -482,6 +490,12 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             # populate categorical prediction matrix
             for i in range((np.shape(fire_pred_ini_cate))[0]):
                 for j in range((np.shape(fire_pred_ini_cate))[1]):
+                    if first_lc:
+                        first_lc = False
+                    else:
+                        # Logically AND all of the lc type predictions by skipping if already -1 or 0
+                        if (lc1[i][j] == lc_type) and val_new_pred[i][j] in [-1, 0]:
+                            continue
                     if (lc1[i][j] == lc_type) & (val_new_pred[i][j][0] < below_no_pred).all():
                         val_new_pred[i][j] = -1
                     elif (lc1[i][j] == lc_type) & (val_new_pred[i][j][0] > above_no_pred).all():
@@ -490,32 +504,30 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
                             val_new_pred[i][j] <= above_no_pred).all():
                         val_new_pred[i][j] = 0
 
+        val_new_obs_prob_1[month][:][:] = val_new_obs
+
     # FIG 6 abd 7 of the paper for aug 2013
 
     # TODO: Change this to match the input parameters
-
-    print('vno', val_new_obs.shape)
-    print('vnp', val_new_pred.shape)
-
 
     a = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     # August for title of the plot
     figco = 8
 
-    month_o_year = np.arange(0, (np.shape(val_new_pred_tot_1))[2], 11)
+    month_o_year = np.arange(0, (np.shape(val_new_pred_prob_1))[2], 11)
     year = 11
 
     # month to graph histograms
     mo = month_o_year[year] + 7
 
     # plot probabilities of observations
-    val_split = np.dsplit(val_new_obs_tot_1, 132)
+    val_split = np.dsplit(val_new_obs_prob_1, 132)
     val = val_split[mo - 1]
     val = val.reshape((112, 244))
     # exclude LC types out of the scope of the study
     for i in range(112):
         for j in range(244):
-            if (lc1[i][k] != 4) & (lc1[i][j] != 5) & (lc1[i][j] != 7) & (lc1[i][j] != 8) & (lc1[i][j] != 10):
+            if (lc1[i][j] != 4) & (lc1[i][j] != 5) & (lc1[i][j] != 7) & (lc1[i][j] != 8) & (lc1[i][j] != 10):
                 val[i][j] = float("NaN")
 
     val = np.rot90(val.T)
