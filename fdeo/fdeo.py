@@ -423,11 +423,11 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
                         if (lc1[i][j] == lc_type) and val_new_obs[i][j] in [-1, 0]:
                             continue
 
-                    if (lc1[i][j] == lc_type) and (val_new_obs[i][j][0] < below_no_obs).all():
+                    if (lc1[i][j] == lc_type) and (val_new_obs[i][j] < below_no_obs).all():
                         val_new_obs[i][j] = -1
-                    elif (lc1[i][j] == lc_type) and (val_new_obs[i][j][0] > above_no_obs).all():
+                    elif (lc1[i][j] == lc_type) and (val_new_obs[i][j] > above_no_obs).all():
                         val_new_obs[i][j] = 1
-                    elif (lc1[i][j] == lc_type) and (val_new_obs[i][j][0] >= below_no_obs).all() and (
+                    elif (lc1[i][j] == lc_type) and (val_new_obs[i][j] >= below_no_obs).all() and (
                             val_new_obs[i][j] <= above_no_obs).all():
                         val_new_obs[i][j] = 0
 
