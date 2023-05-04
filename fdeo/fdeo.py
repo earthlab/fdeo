@@ -372,6 +372,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
             # Derive observation and prediction anomalies for each LC Type
             idx_lc = np.equal(lc1, lc_type)  # Creates a 1d array that fulfills cond
+            print(idx_lc.shape)
 
             mat = val_new_obs[idx_lc]  # Picks values from val_new_obs that fulfills cond
 
