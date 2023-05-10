@@ -28,11 +28,6 @@ import netCDF4 as nc
 from utils import set_tiff_resolution
 
 
-# TODO: Make sure area of interest being requested is only CONUS
-VPD_SCALE_FACTOR = 100000
-SSM_SCALE_FACTOR = 10000
-
-
 class BaseAPI:
     """
     Defines all the attributes and methods common to the child APIs.
@@ -157,7 +152,7 @@ class BaseAPI:
 
     @staticmethod
     def _create_raster(output_path: str, columns: int, rows: int, n_band: int = 1,
-                       gdal_data_type: int = gdal.GDT_UInt16,
+                       gdal_data_type: int = gdal.GDT_Float32,
                        driver: str = r'GTiff'):
         """
         Credit:
@@ -180,7 +175,7 @@ class BaseAPI:
         return output_raster
 
     def _numpy_array_to_raster(self, output_path: str, numpy_array: np.array, geo_transform,
-                               projection, n_band: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_UInt32):
+                               projection, n_band: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_Float32):
         """
         Returns a gdal raster data source
         Args:
@@ -330,7 +325,7 @@ class SSM(BaseAPI):
 
             output_tiff_file = os.path.join(output_dir, os.path.basename(files[0]).replace('.nc4', '.tif'))
 
-            self._clip_to_conus(mean_array[0] * SSM_SCALE_FACTOR, output_tiff_file)
+            self._clip_to_conus(mean_array[0], output_tiff_file)
 
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 600
@@ -354,7 +349,8 @@ class SSM(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
-        _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84')
+        _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
+                                        gdal_data_type=gdal.GDT_Float32)
 
 
 class VPD(BaseAPI):
@@ -450,7 +446,8 @@ class VPD(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
-        _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84')
+        _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
+                                        gdal_data_type=gdal.GDT_Float32)
 
     @staticmethod
     def calculate_vpd(vpd_file: str):
@@ -471,7 +468,7 @@ class VPD(BaseAPI):
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
 
             # TODO: Add constants for scale factors and use them in main function
-            vpd_array = vpd_array * VPD_SCALE_FACTOR
+            vpd_array = vpd_array
 
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 

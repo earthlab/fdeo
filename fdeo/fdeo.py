@@ -14,7 +14,7 @@ from datetime import datetime
 from scipy import signal
 import matplotlib.pyplot as plt
 from functions import data2index, data2index_larger, calc_plotting_position
-from api import VPD, EVI, SSM, SSM_SCALE_FACTOR, VPD_SCALE_FACTOR
+from api import VPD, EVI, SSM
 from utils import stack_raster_months, stack_arrays
 from osgeo import gdal
 
@@ -590,66 +590,69 @@ if __name__ == '__main__':
     stacked_evi_data = None
 
     args = parser.parse_args()
-    # if args.start_date is not None or args.end_date is not None:
-    #     username = args.username
-    #     password = args.password
-    #     if args.credentials is not None:
-    #         with open(args.credentials, 'r') as f:
-    #             lines = f.readlines()
-    #             username = lines[0].strip('\n').strip(' ')
-    #             password = lines[1].strip('\n').strip(' ')
-    #
-    #     if username is None or password is None:
-    #         raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
-    #                          ' or -u and -p arguments if you would like to download from the API')
-    #
-    #     ssm = SSM(username=username, password=password)
-    #     evi = EVI(username=username, password=password)
-    #     vpd = VPD(username=username, password=password)
-    #
-    #     tempdir = tempfile.mkdtemp(prefix='fdeo')
-    #     ssm_dir = os.path.join(tempdir, 'ssm')
-    #     evi_dir = os.path.join(tempdir, 'evi')
-    #     vpd_dir = os.path.join(tempdir, 'vpd')
-    #     os.makedirs(ssm_dir)
-    #     os.makedirs(evi_dir)
-    #     os.makedirs(vpd_dir)
-    #     start_date = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date is not None else None
-    #     end_date = datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date is not None else None
-    #     ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
-    #     evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
-    #     vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
-    #
-    #     # Sample the EVI and VPD data to the SSM 0.25 deg spatial resolution
-    #     ssm_sample_file = os.path.join(ssm_dir, os.listdir(ssm_dir)[0])
-    #
-    #     sorted_evi_files = evi.sort_tif_files(evi_dir)
-    #     sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
-    #
-    #     print(sorted_evi_files)
-    #     print(sorted_vpd_files)
-    #     print(ssm.sort_tif_files(ssm_dir))
-    #
-    #     stacked_evi_data = stack_raster_months(sorted_evi_files)
-    #     stacked_vpd_data = stack_raster_months(sorted_vpd_files, scale_factor=VPD_SCALE_FACTOR)
-    #
-    #     print('stacked')
-    #
-    #     ssm_month_data = []
-    #     for ssm_file in ssm.sort_tif_files(ssm_dir):
-    #         ssm_file_obj = gdal.Open(ssm_file)
-    #         ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray() / SSM_SCALE_FACTOR)
-    #
-    #     stacked_ssm_data = stack_arrays(ssm_month_data)
-    #
-    #     print(stacked_ssm_data.shape)
-    #     print(stacked_evi_data.shape)
-    #     print(stacked_vpd_data.shape)
-    #
-    #     # TODO: Just for testing
-    #     ssm._numpy_array_to_raster('ssm_test.tif', stacked_ssm_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
-    #     ssm._numpy_array_to_raster('evi_test.tif', stacked_evi_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
-    #     ssm._numpy_array_to_raster('vpd_test.tif', stacked_vpd_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25], 'wgs84')
+    if args.start_date is not None or args.end_date is not None:
+        username = args.username
+        password = args.password
+        if args.credentials is not None:
+            with open(args.credentials, 'r') as f:
+                lines = f.readlines()
+                username = lines[0].strip('\n').strip(' ')
+                password = lines[1].strip('\n').strip(' ')
+
+        if username is None or password is None:
+            raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
+                             ' or -u and -p arguments if you would like to download from the API')
+
+        ssm = SSM(username=username, password=password)
+        evi = EVI(username=username, password=password)
+        vpd = VPD(username=username, password=password)
+
+        tempdir = tempfile.mkdtemp(prefix='fdeo')
+        ssm_dir = os.path.join(tempdir, 'ssm')
+        evi_dir = os.path.join(tempdir, 'evi')
+        vpd_dir = os.path.join(tempdir, 'vpd')
+        os.makedirs(ssm_dir)
+        os.makedirs(evi_dir)
+        os.makedirs(vpd_dir)
+        start_date = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date is not None else None
+        end_date = datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date is not None else None
+        ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
+        evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
+        vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
+
+        # Sample the EVI and VPD data to the SSM 0.25 deg spatial resolution
+        ssm_sample_file = os.path.join(ssm_dir, os.listdir(ssm_dir)[0])
+
+        sorted_evi_files = evi.sort_tif_files(evi_dir)
+        sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
+
+        print(sorted_evi_files)
+        print(sorted_vpd_files)
+        print(ssm.sort_tif_files(ssm_dir))
+
+        stacked_evi_data = stack_raster_months(sorted_evi_files)
+        stacked_vpd_data = stack_raster_months(sorted_vpd_files)
+
+        print('stacked')
+
+        ssm_month_data = []
+        for ssm_file in ssm.sort_tif_files(ssm_dir):
+            ssm_file_obj = gdal.Open(ssm_file)
+            ssm_month_data.append(ssm_file_obj.GetRasterBand(1).ReadAsArray())
+
+        stacked_ssm_data = stack_arrays(ssm_month_data)
+
+        print(stacked_ssm_data.shape)
+        print(stacked_evi_data.shape)
+        print(stacked_vpd_data.shape)
+
+        # TODO: Just for testing
+        ssm._numpy_array_to_raster('ssm_plot.tif', np.flipud(stacked_ssm_data[:,:,0]), [-126.75, 0.25, 0, 51.75, 0, -0.25],
+                                   'wgs84', gdal_data_type=gdal.GDT_Float32)
+        ssm._numpy_array_to_raster('evi_plot.tif', np.flipud(stacked_evi_data[:,:,0]), [-126.75, 0.25, 0, 51.75, 0, -0.25],
+                                   'wgs84', gdal_data_type=gdal.GDT_Float32)
+        ssm._numpy_array_to_raster('vpd_plot.tif', np.flipud(stacked_vpd_data[:,:,0]), [-126.75, 0.25, 0, 51.75, 0, -0.25],
+                                   'wgs84', gdal_data_type=gdal.GDT_Float32)
     print('Opening')
     stacked_ssm_data = gdal.Open(args.ssm_test)
     stacked_ssm_data = stacked_ssm_data.GetRasterBand(1).ReadAsArray().reshape((112, 244, 1))

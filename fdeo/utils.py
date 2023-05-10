@@ -1,5 +1,5 @@
 from typing import List
-#from osgeo import gdal
+from osgeo import gdal
 from scipy.interpolate import RegularGridInterpolator
 import numpy as np
 import os
@@ -10,14 +10,14 @@ from matplotlib.colors import ListedColormap
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
-def stack_raster_months(sorted_input_files: List[str], scale_factor: int = 1):
+def stack_raster_months(sorted_input_files: List[str]):
     month_data = []
     for file in sorted_input_files:
         raster = gdal.Open(file)
         print('opened raster')
         data = raster.GetRasterBand(1).ReadAsArray()
         print('got data')
-        month_data.append(data / scale_factor)
+        month_data.append(data)
 
     return stack_arrays(month_data)
 
@@ -117,6 +117,34 @@ def plot_file(input_file, months: int):
     #val = np.rot90(val.T)
     # fig, (fig1) = plt.subplots(1, 1)
     # fig1.pcolor(val)
-    cmap = ListedColormap(['red', 'green', 'blue'])
-    plt.imshow(np.squeeze(val), cmap=cmap)
+    cmap = ListedColormap(['green', 'blue', 'red'])
+    plt.imshow(np.squeeze(val[:, :, 0]), cmap=cmap)
+    plt.show()
+
+def pretty_plot(input_tiff: str, title: str, xlabel: str, ylabel: str, save_filename: str):
+    tiff_file = gdal.Open(input_tiff)
+    data = tiff_file.GetRasterBand(1).ReadAsArray()
+    data = np.clip(data, 0, np.inf)
+    min = np.min(data.flatten())
+    max = np.max(data.flatten())
+
+    # Create the figure and axis
+    fig, ax = plt.subplots()
+
+    # Set the color map
+    cmap = plt.cm.get_cmap('viridis')  # Choose the desired colormap
+
+    # Plot the array
+    im = ax.imshow(np.flipud(data), cmap=cmap, vmin=min, vmax=max, origin='lower')
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
+    # Add a colorbar
+    cbar = fig.colorbar(im)
+
+    fig.savefig(save_filename, dpi=300, bbox_inches='tight')
+
+    # Show the plot
     plt.show()
