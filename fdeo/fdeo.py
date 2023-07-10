@@ -616,7 +616,8 @@ if __name__ == '__main__':
     stacked_vpd_data = stacked_vpd_data.GetRasterBand(1).ReadAsArray().reshape((112, 244, 1))
     print('Opened')
 
-    main(ssm_prediction_data=stacked_ssm_data, evi_prediction_data=stacked_evi_data, vpd_prediction_data=stacked_vpd_data)
+    main(ssm_prediction_data=stacked_ssm_data, evi_prediction_data=stacked_evi_data,
+         vpd_prediction_data=stacked_vpd_data)
 
     # if stacked_ssm_data is not None:
     #     print(ssm_dir)
