@@ -13,7 +13,7 @@ import numpy as np
 from datetime import datetime
 from scipy import signal
 import matplotlib.pyplot as plt
-from functions import data2index, data2index_larger, calc_plotting_position
+from functions import data2index, empdis
 from api import VPD, EVI, SSM
 from utils import stack_raster_months, stack_arrays
 from osgeo import gdal
@@ -72,10 +72,10 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
     # calculate the fire climatology for each month
 
-    # split the dim sizes for ease
+    # split the dim sizes for ease of use later on
     firemon_tot_size_x = training_data_dimensions[0]  # lat
     firemon_tot_size_y = training_data_dimensions[1]  # lon
-    firemon_tot_size_z = training_data_months # months
+    firemon_tot_size_z = training_data_months  # months
 
     firemon_tot_size_climatology = np.empty((firemon_tot_size_x, firemon_tot_size_y, 12))
     for i in range(firemon_tot_size_x):
@@ -113,7 +113,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
     # Evergreen DI
     sc_drought = 3
-    vpd_new_drought = data2index_larger(vpd_training_data, sc_drought)
+    vpd_new_drought = data2index(vpd_training_data, sc_drought)
     evergreen_best_ba_training = vpd_new_drought
 
     # Herbaceous DI
@@ -123,6 +123,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
     sc_drought = 3
     wetland_best_ba_training = data2index(ssm_training_data, sc_drought)
 
+    # TODO: If prediction data is None then use the training files
 
     # Prepare and define prediction data sets
     # Deciduous DI
@@ -135,7 +136,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
     # Evergreen DI
     sc_drought = 3
-    vpd_new_drought = data2index_larger(vpd_prediction_data, sc_drought)
+    vpd_new_drought = data2index(vpd_prediction_data, sc_drought)
     evergreen_best_ba_prediction = vpd_new_drought
 
     # Herbaceous DI
@@ -143,7 +144,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
     # Wetland DI
     sc_drought = 3
-    wetland_best_ba_prediction = data2index(ssm_training_data, sc_drought)
+    wetland_best_ba_prediction = data2index(ssm_prediction_data, sc_drought)
 
     # Build the prediction model. One model for each land cover type
 
@@ -223,7 +224,6 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
                         else:
                             # Drought index
                             mat[0][m] = lc_forecast['data'][i][j][k - lead]
-
                             # Fire burned area
                             mat[1][m] = firemon_tot_size[i][j][k]
                         m += 1
@@ -348,20 +348,18 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
     # Derive bias adjusted observation and prediction probabilities and categorical forecast for the entire time series
     # distribution of prediction and observation come from Gringorten empirical distribution function (empdis function)
 
-
-
     # This section derives CDF of observation and prediction anomalies
     # derive CDF for each land cover type and for each month.
     # Build probabilistic prediction and observation matrices
-    val_new_obs_prob_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
-    val_new_pred_prob_1 = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
     val_new_obs_cat_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
+    val_new_obs_prob_1 = np.empty((firemon_tot_size_x, firemon_tot_size_y, firemon_tot_size_z))
+
+    val_new_pred_prob_1 = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
     val_new_pred_cat_1 = np.empty((prediction_lat_size, prediction_lon_size, prediction_month_size))
+
     obs_split = np.dsplit(fire_obs_ini_cate, 132)
     pred_split = np.dsplit(fire_pred_ini_cate, prediction_month_size)
-
-    # TODO: Change months back
-    for month in range(5):  # TODO: EV: This is not correct. The 0 index being used previously was lon dim, not months
+    for month in range(firemon_tot_size_z):
         print(month)
 
         # Matrix of observation and prediction anomalies for each month
@@ -369,28 +367,22 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
         # Derive CDF for each LC type
         for lc_type in lctypemat:
-
             # Derive observation and prediction anomalies for each LC Type
             idx_lc = np.equal(lc1, lc_type)  # Creates a 1d array that fulfills cond
 
             mat = val_new_obs[idx_lc]  # Picks values from val_new_obs that fulfills cond
 
             # Observation CDF
-            y = calc_plotting_position(mat)
+            y = empdis(mat)
 
             val_new_obs[idx_lc] = y.flatten()
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
-        # TODO: Why not use val_new_pred
-        # val_new_obs_prob_1[:, :, month] = fire_obs_ini_cate[:, :, month]
         val_new_obs_prob_1[:, :, month] = val_new_obs
 
         val_new_obs = np.squeeze(obs_split[month])
-
         # build a loop for each LC Type
-        first_lc = True
         for lc_type in lctypemat:
-
             # derive observation and prediction anomalies for each LC Type
             idx_lc = np.equal(lc1, lc_type)  # creates a 1d array that fulfills cond
 
@@ -398,7 +390,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
             # TODO: Make this into a function
             # Observation CDF 33 percentile threshold for observation time series
-            y1 = calc_plotting_position(mat)
+            y1 = empdis(mat)
             y1 = y1.flatten()
             t1 = np.min(y1)
             t2 = np.max(y1)
@@ -421,13 +413,6 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             # populate categorical observation matrix
             for i in range(np.shape(fire_obs_ini_cate)[0]):
                 for j in range(np.shape(fire_obs_ini_cate)[1]):
-                    if first_lc:
-                        first_lc = False
-                    else:
-                        # Logically AND all of the lc type predictions by skipping if already -1 or 0
-                        if (lc1[i][j] == lc_type) and val_new_obs[i][j] in [-1, 0]:
-                            continue
-
                     if (lc1[i][j] == lc_type) and (val_new_obs[i][j] < below_no_obs).all():
                         val_new_obs[i][j] = -1
                     elif (lc1[i][j] == lc_type) and (val_new_obs[i][j] > above_no_obs).all():
@@ -435,7 +420,6 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
                     elif (lc1[i][j] == lc_type) and (val_new_obs[i][j] >= below_no_obs).all() and (
                             val_new_obs[i][j] <= above_no_obs).all():
                         val_new_obs[i][j] = 0
-
         val_new_obs_cat_1[:, :, month] = val_new_obs
 
     np.savetxt(f'fire_obs_ini_cate{fire_obs_ini_cate.shape}.txt', fire_obs_ini_cate.reshape(
@@ -445,7 +429,6 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
     np.savetxt(f'val_new_obs_cat{val_new_obs_cat_1.shape}.txt', val_new_obs_cat_1.reshape(
         -1, val_new_obs_cat_1.shape[-1]))
 
-    first_lc = True
     for month in range(prediction_month_size):
         print(month)
 
@@ -462,7 +445,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
             mat = val_new_obs[idx_lc]  # Picks values from val_new_obs that fulfills cond
 
             # Observation CDF
-            y = calc_plotting_position(mat)
+            y = empdis(mat)
             val_new_pred[idx_lc] = y.flatten()
 
         # Build matrix of CDFs (probabilistic prediction and observation matrices)
@@ -483,7 +466,7 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
 
             # prediction CDF
             # 33 percentile threshold for prediction time series
-            y1 = calc_plotting_position(mat1)
+            y1 = empdis(mat1)
             y1 = y1.flatten()
             t1 = np.min(y1)
             t2 = np.max(y1)
@@ -526,36 +509,6 @@ def main(ssm_prediction_data: np.array, evi_prediction_data: np.array, vpd_predi
         -1, val_new_pred_prob_1.shape[-1]))
     np.savetxt(f'val_new_pred_cat{val_new_pred_cat_1.shape}.txt', val_new_pred_cat_1.reshape(
         -1, val_new_pred_cat_1.shape[-1]))
-
-    # FIG 6 abd 7 of the paper for aug 2013
-
-    # TODO: Change this to match the input parameters
-
-    a = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    # August for title of the plot
-    figco = 8
-
-    month_o_year = np.arange(0, (np.shape(val_new_pred_prob_1))[2], 11)
-    year = 11
-
-    # month to graph histograms
-    mo = month_o_year[year] + 7
-
-    # plot probabilities of observations
-    val_split = np.dsplit(val_new_obs_prob_1, 132)
-    val = val_split[mo - 1]
-    val = val.reshape((112, 244))
-    # exclude LC types out of the scope of the study
-    for i in range(112):
-        for j in range(244):
-            if (lc1[i][j] != 4) & (lc1[i][j] != 5) & (lc1[i][j] != 7) & (lc1[i][j] != 8) & (lc1[i][j] != 10):
-                val[i][j] = float("NaN")
-
-    val = np.rot90(val.T)
-    fig, (fig1) = plt.subplots(1, 1)
-    fig1.pcolor(val)
-    plt.xlabel(a[figco])
-    plt.show()
 
 
 if __name__ == '__main__':

@@ -101,7 +101,8 @@ def get_geo_locations_from_geotransform(geo_transform, num_cols: int, num_rows: 
     return lons, lats
 
 
-def plot_file(input_file, months: int):
+def plot_file(input_file, months: int, year_to_plot: int, month_to_plot: int):
+    month_titles = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     lc1 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'lc1.csv'), delimiter=",")
 
     val = np.loadtxt(input_file)
@@ -114,7 +115,25 @@ def plot_file(input_file, months: int):
             if (lc1[i][j] != 4) & (lc1[i][j] != 5) & (lc1[i][j] != 7) & (lc1[i][j] != 8) & (lc1[i][j] != 10):
                 val[i][j] = float("NaN")
 
-    #val = np.rot90(val.T)
+    # month to graph histograms
+    mo_index = (year_to_plot - 1) * 12 + month_to_plot - 1
+
+    # plot probabilities of observations
+    val_split = np.dsplit(val, months)
+    val = val_split[mo_index]
+    val = val.reshape((112, 244))
+    # exclude LC types out of the scope of the study
+    for i in range(112):
+        for j in range(244):
+            if (lc1[i][j] != 4) & (lc1[i][j] != 5) & (lc1[i][j] != 7) & (lc1[i][j] != 8) & (lc1[i][j] != 10):
+                val[i][j] = float("NaN")
+
+    cmap = ListedColormap(['green', 'white', 'red'])
+    plt.imshow(val, cmap=cmap)
+    plt.xlabel(month_titles[month_to_plot - 1])
+    plt.show()
+
+    # val = np.rot90(val.T)
     # fig, (fig1) = plt.subplots(1, 1)
     # fig1.pcolor(val)
     cmap = ListedColormap(['green', 'blue', 'red'])
