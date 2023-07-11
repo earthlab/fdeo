@@ -225,16 +225,10 @@ def main(
                     for k in range(firemon_tot_size_z):
                         # Leave the first 3-month empty to account for 2-month lead model development
                         if k - lead < 0:
-<<<<<<< HEAD
-                            np.append(mat, [np.nan, np.nan])
-                        else:
-                            np.append(mat, [lc_forecast['data'][i, j, k - lead], firemon_tot_size[i, j, k]])
-=======
                             mat[0, m] = np.nan
                         else:
                             mat[0, m] = lc_forecast['data'][i, j, k - lead]
                             mat[1, m] = firemon_tot_size[i, j, k]
->>>>>>> refs/remotes/origin/master
                         m += 1
 
         # Remove NaN values from the data
