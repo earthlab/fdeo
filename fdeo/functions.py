@@ -16,7 +16,7 @@ def compute_spi(md, sc):
     
     # Compute the SPI or SSI
     n = len(Y)
-    si = np.zeros(n)
+    si = np.zeros((n, 1))
     
     for k in range(1, 13):
         d = Y[k-1::12]
