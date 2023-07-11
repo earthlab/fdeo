@@ -16,11 +16,11 @@ def compute_spi(md, sc):
     
     # Compute the SPI or SSI
     n = len(Y)
-    si = np.zeros((n, 1))
+    si = np.zeros(n)
     
-    for k in range(12):
-        d = Y[k:12:n]
-        si[k:12:n, 0] = empdis(d)
+    for k in range(1, 13):
+        d = Y[k-1::12]
+        si[k-1::12, 0] = empdis(d)
     
     si[:, 0] = norm.ppf(si[:, 0])
     
