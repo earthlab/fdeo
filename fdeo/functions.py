@@ -10,15 +10,15 @@ from scipy.stats import norm
 
 
 def compute_spi(md, sc):
-    a1 = np.column_stack([md[i:len(md)-sc+i] for i in range(1, sc+1)])
+    a1 = np.column_stack([md[i:len(md)-sc+i] for i in range(sc)])
     y = np.sum(a1, axis=1)
 
     n = len(y)
     si = np.zeros(n)
 
-    for k in range(1, 13):
-        d = y[k-1::12]
-        si[k-1::12] = empdis(d)
+    for k in range(12):
+        d = y[k]
+        si[k::12] = empdis(d)
 
     return norm.ppf(si)
 
@@ -40,8 +40,8 @@ def data2index(resd, sc):
 
     for i in range(lats):
         for j in range(lons):
-            td = resd[i, j, :]
+            td = np.reshape(resd[i, j, :], (n_months, 1))
             si[i, j, :sc-1] = np.nan
-            si[i, j, sc:] = compute_spi(td, sc)
+            si[i, j, sc-1:] = compute_spi(td, sc)
 
     return si
