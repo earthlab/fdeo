@@ -382,11 +382,11 @@ def main(
         val_new_pred_tot_1[:, :, k] = val_new_pred
 
 
-    np.savetxt(f'fire_obs_ini_cate{fire_obs_ini.shape}.txt', fire_obs_ini.reshape(
+    np.savetxt(f'fire_obs_ini_cate.txt', fire_obs_ini.reshape(
         -1, fire_obs_ini.shape[-1]))
-    np.savetxt(f'val_new_obs_tot_1_{val_new_obs_tot_1.shape}.txt', val_new_obs_tot_1.reshape(
+    np.savetxt(f'val_new_obs_tot_1.txt', val_new_obs_tot_1.reshape(
         -1, val_new_obs_tot_1.shape[-1]))
-    np.savetxt(f'val_new_pred_tot_1_{val_new_pred_tot_1.shape}.txt', val_new_pred_tot_1.reshape(
+    np.savetxt(f'val_new_pred_tot_1.txt', val_new_pred_tot_1.reshape(
         -1, val_new_pred_tot_1.shape[-1]))
 
     val_new_obs_tot_2 = np.zeros_like(fire_obs_ini)
@@ -468,9 +468,9 @@ def main(
         val_new_obs_tot_2[:, :, k] = val_new_obs
         val_new_pred_tot_2[:, :, k] = val_new_pred
 
-    np.savetxt(f'val_new_obs_tot_2_{val_new_obs_tot_2.shape}.txt', val_new_obs_tot_2.reshape(
+    np.savetxt(f'val_new_obs_tot_2.txt', val_new_obs_tot_2.reshape(
         -1, val_new_obs_tot_2.shape[-1]))
-    np.savetxt(f'val_new_pred_tot_2_{val_new_pred_tot_2.shape}.txt', val_new_pred_tot_2.reshape(
+    np.savetxt(f'val_new_pred_tot_2.txt', val_new_pred_tot_2.reshape(
         -1, val_new_pred_tot_2.shape[-1]))
 
 
