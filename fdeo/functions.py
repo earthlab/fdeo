@@ -26,7 +26,7 @@ def compute_spi(md, sc):
     
     si[:, 0] = norm.ppf(si[:, 0])
     
-    return si
+    return si[0]
 
 
 def empdis(d):
