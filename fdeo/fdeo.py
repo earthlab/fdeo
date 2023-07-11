@@ -262,11 +262,11 @@ def main(
         k = 0
         for i in range(bin-1):
             # Find observations in each bin
-            idx3 = np.where((mat[:, 0] >= varbin[i]) & (mat[:, 0] <= varbin[i+1]))
+            idx3 = np.where((mat[0, :] >= varbin[i]) & (mat[0, :] <= varbin[i+1]))
 
             # Find DI in each bin
             # Get corresponding burned area in each bin
-            fire_freq_range = mat[idx3, 1]
+            fire_freq_range = mat[0, :][idx3]
             # Calculate number of observations in each bin
             sample_size[k] = len(idx3[0])
             # Calculate sum burned area in each bin
