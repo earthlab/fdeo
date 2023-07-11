@@ -221,26 +221,40 @@ def main(
         for i in range(firemon_tot_size_x):
             for j in range(firemon_tot_size_y):
                 if lc1[i][j] == lc_forecast['index']:
+                    print('matched index')
                     for k in range(firemon_tot_size_z):
                         # Leave the first 3-month empty to account for 2-month lead model development
                         if k - lead < 0:
+<<<<<<< HEAD
                             np.append(mat, [np.nan, np.nan])
                         else:
                             np.append(mat, [lc_forecast['data'][i, j, k - lead], firemon_tot_size[i, j, k]])
+=======
+                            mat[0, m] = np.nan
+                        else:
+                            mat[0, m] = lc_forecast['data'][i, j, k - lead]
+                            mat[1, m] = firemon_tot_size[i, j, k]
+>>>>>>> refs/remotes/origin/master
                         m += 1
 
         # Remove NaN values from the data
-        mat = np.array(mat)
-        idx_nan = np.unique(np.concatenate((np.isnan(mat[:, 0]).nonzero()[0], np.isnan(mat[:, 1]).nonzero()[0])))
-        mat = np.delete(mat, idx_nan, axis=0)
+        # Find indices of NaN values in each column
+        idx_nan_1 = np.isnan(mat[0, :])
+        idx_nan_2 = np.isnan(mat[1, :])
+
+        # Combine indices of NaN values
+        idx_nan = np.logical_or(idx_nan_1, idx_nan_2)
+
+        # Filter the array to remove rows with NaN values
+        mat = np.vstack(mat[0, :][~idx_nan], mat[1, :][~idx_nan])
 
         # Bar plots to derive the regression model
         # Define number of bins
         bin = 10
 
         # Derive min and max of DI (drought indicator) data
-        min_1 = np.min(mat[:, 0])
-        max_1 = np.max(mat[:, 0])
+        min_1 = np.min(mat[0, :])
+        max_1 = np.max(mat[0, :])
 
         # Derive vector of bins based on DI data
         varbin = np.linspace(min_1, max_1, num=bin)
