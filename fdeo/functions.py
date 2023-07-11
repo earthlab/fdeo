@@ -10,16 +10,23 @@ from scipy.stats import norm
 
 
 def compute_spi(md, sc):
-    a1 = np.column_stack([md[i:len(md)-sc+i] for i in range(sc)])
-    y = np.sum(a1, axis=1)
-
-    n = len(y)
-    si = np.zeros(n)
-
+    # Get the data for the time scale sc
+    a1 = np.empty((len(md), sc))
+    for i in range(sc):
+        a1[:, i] = md[i:len(md)-sc+i]
+    Y = np.sum(a1, axis=1)
+    
+    # Compute the SPI or SSI
+    n = len(Y)
+    si = np.zeros((n, 1))
+    
     for k in range(12):
-        si[k::12] = empdis(y[k::12])
-
-    return norm.ppf(si)
+        d = Y[k:12:n]
+        si[k:12:n, 0] = empdis(d)
+    
+    si[:, 0] = norm.ppf(si[:, 0])
+    
+    return si
 
 
 def empdis(d):
@@ -39,7 +46,7 @@ def data2index(resd, sc):
 
     for i in range(lats):
         for j in range(lons):
-            td = np.reshape(resd[i, j, :], (n_months, 0))
+            td = np.reshape(resd[i, j, :], (n_months, 1))
             si[i, j, :sc-1] = np.nan
             si[i, j, sc-1:] = compute_spi(td, sc)
 
