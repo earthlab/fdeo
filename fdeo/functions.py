@@ -28,7 +28,7 @@ def empdis(d):
     bp = np.zeros(n)
 
     for i in range(n):
-        bp[i] = np.sum(d[:, 0] <= d[i, 0])
+        bp[i] = np.sum(d <= d[i])
 
     y = (bp - 0.44) / (n + 0.12)
     return y
@@ -42,6 +42,6 @@ def data2index(resd, sc):
         for j in range(lons):
             td = resd[i, j, :]
             si[i, j, :sc-1] = np.nan
-            si[i, j, sc-1:] = compute_spi(td, sc)
+            si[i, j, sc:] = compute_spi(td, sc)
 
     return si

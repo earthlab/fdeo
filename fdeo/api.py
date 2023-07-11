@@ -16,9 +16,7 @@ import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from osgeo import osr
-import ogr
-import gdal
+from osgeo import osr, ogr, gdal
 import numpy as np
 from pyhdf.SD import SD, SDC
 import rasterio

@@ -224,9 +224,9 @@ def main(
                     for k in range(firemon_tot_size_z):
                         # Leave the first 3-month empty to account for 2-month lead model development
                         if k - lead < 0:
-                            mat.append([np.nan, np.nan])
+                            np.append(mat, [np.nan, np.nan])
                         else:
-                            mat.append([lc_forecast['data'][i, j, k - lead], firemon_tot_size[i, j, k]])
+                            np.append(mat, [lc_forecast['data'][i, j, k - lead], firemon_tot_size[i, j, k]])
                         m += 1
 
         # Remove NaN values from the data
@@ -243,7 +243,7 @@ def main(
         max_1 = np.max(mat[:, 0])
 
         # Derive vector of bins based on DI data
-        varbin = np.linspace(min_1, max_1, num=bin+1)
+        varbin = np.linspace(min_1, max_1, num=bin)
 
         # Initialize arrays to store results
         sample_size = np.zeros(bin)
@@ -252,7 +252,7 @@ def main(
 
         # Find observations in each bin
         k = 0
-        for i in range(bin):
+        for i in range(bin-1):
             # Find observations in each bin
             idx3 = np.where((mat[:, 0] >= varbin[i]) & (mat[:, 0] <= varbin[i+1]))
 
