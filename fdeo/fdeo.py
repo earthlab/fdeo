@@ -211,8 +211,6 @@ def main(
     #     }
     # ]
     # Initialize the model and observation result arrays
-    model_res = []
-    obs_res = []
     for lc_forecast in land_cover_training_data:
         # First build the regression model for the LC Type initial parameters
         mat = np.empty((2, firemon_tot_size.size), dtype=float)  # Initial array
@@ -259,7 +257,6 @@ def main(
         prob = np.zeros(bin)
 
         # Find observations in each bin
-        k = 0
         for i in range(bin-1):
             # Find observations in each bin
             idx3 = np.where((mat[0, :] >= varbin[i]) & (mat[0, :] <= varbin[i+1]))
@@ -268,12 +265,11 @@ def main(
             # Get corresponding burned area in each bin
             fire_freq_range = mat[0, :][idx3]
             # Calculate number of observations in each bin
-            sample_size[k] = len(idx3[0])
+            sample_size[i] = len(idx3[0])
             # Calculate sum burned area in each bin
-            fire_freq_ave[k] = np.sum(fire_freq_range)
+            fire_freq_ave[i] = np.sum(fire_freq_range)
             # Calculate probability of fire at each bin
-            prob[k] = fire_freq_ave[k] / sample_size[k]
-            k += 1
+            prob[i] = fire_freq_ave[i] / sample_size[i]
 
         # Develop linear regression model
         x = np.array(varbin)
@@ -283,14 +279,9 @@ def main(
         idx_nan = np.isnan(x)
         x = x[~idx_nan]
         y = y[~idx_nan]
-        print(x, y)
 
         # Fit the regression model
         gofmat1 = np.polyfit(x, y, 2)
-
-        # Calculate model and observation values at each bin. Each row represents one LC Type
-        model_res.append(gofmat1[0] * (varbin ** 2) + gofmat1[1] * varbin + gofmat1[2])
-        obs_res.append(prob)
 
         x = None
         y = None
@@ -307,24 +298,24 @@ def main(
                         )
 
     # Build a correlation matrix and R2 matrix of goodness of fit for all models. Each row represents one LC Type
-    corr_vector = np.zeros(5)
-    r2_vector = np.zeros(5)
+    # corr_vector = np.zeros(len(land_cover_training_data))
+    # r2_vector = np.zeros(len(land_cover_training_data))
 
-    for i in range(len(model_res)):
-        # Remove NaN from observation
-        idx_nan_4 = np.isnan(obs_res[i])
-        model_res1 = model_res[i]
-        obs_res1 = obs_res[i]
-        model_res1 = model_res1[~idx_nan_4]
-        obs_res1 = obs_res1[~idx_nan_4]
+    # for i in range(len(model_res)):
+    #     # Remove NaN from observation
+    #     idx_nan_4 = np.isnan(obs_res[i])
+    #     model_res1 = model_res[i]
+    #     obs_res1 = obs_res[i]
+    #     model_res1 = model_res1[~idx_nan_4]
+    #     obs_res1 = obs_res1[~idx_nan_4]
 
-        # Calculate correlation
-        corr_mat = np.corrcoef(model_res1, obs_res1)
+        # # Calculate correlation
+        # corr_mat = np.corrcoef(model_res1, obs_res1)
 
-        # Correlation vector of observation and model
-        corr_vector[i] = corr_mat[0, 1]
-        # R2 vector of observation and model
-        r2_vector[i] = corr_vector[i] ** 2
+        # # Correlation vector of observation and model
+        # corr_vector[i][0] = corr_mat[0, 1]
+        # # R2 vector of observation and model
+        # r2_vector[i][0] = corr_vector[i][0] ** 2
 
     # We now calculate anomalies for observation and predictions
 
@@ -363,9 +354,9 @@ def main(
         val_new_pred = fire_pred_ini[:, :, k]
 
         # derive CDF for each LC type
-        for lc_co in range(len(lctypemat)):
+        for lc_type in lctypemat:
             # derive observation and prediction anomalies for each LC Type
-            idx_lc = np.where(lc1 == lctypemat[lc_co])
+            idx_lc = np.where(lc1 == lc_type)
             mat = val_new_obs[idx_lc]
             mat1 = val_new_pred[idx_lc]
 
@@ -380,7 +371,6 @@ def main(
         # build matrix of CDFs (probabilistic prediction and observation matrices)
         val_new_obs_tot_1[:, :, k] = val_new_obs
         val_new_pred_tot_1[:, :, k] = val_new_pred
-
 
     np.savetxt(f'fire_obs_ini_cate.txt', fire_obs_ini.reshape(
         -1, fire_obs_ini.shape[-1]))
@@ -400,9 +390,9 @@ def main(
         val_new_pred = fire_pred_ini[:, :, k]
 
         # build a loop for each LC type
-        for lc_co in range(len(lctypemat)):
+        for lc_type in lctypemat:
             # derive observation and prediction anomalies for each LC Type
-            idx_lc = np.where(lc1 == lctypemat[lc_co])
+            idx_lc = np.where(lc1 == lc_type)
             mat = val_new_obs[idx_lc]
             mat1 = val_new_pred[idx_lc]
 
@@ -447,21 +437,21 @@ def main(
             # populate categorical observation matrix
             for i in range(fire_obs_ini.shape[0]):
                 for j in range(fire_obs_ini.shape[1]):
-                    if lc1[i, j] == lctypemat[lc_co] and val_new_obs[i, j] < below_no_obs:
+                    if lc1[i, j] == lc_type and val_new_obs[i, j] < below_no_obs:
                         val_new_obs[i, j] = -1
-                    elif lc1[i, j] == lctypemat[lc_co] and val_new_obs[i, j] > above_no_obs:
+                    elif lc1[i, j] == lc_type and val_new_obs[i, j] > above_no_obs:
                         val_new_obs[i, j] = 1
-                    elif lc1[i, j] == lctypemat[lc_co] and below_no_obs <= val_new_obs[i, j] <= above_no_obs:
+                    elif lc1[i, j] == lc_type and below_no_obs <= val_new_obs[i, j] <= above_no_obs:
                         val_new_obs[i, j] = 0
 
             # populate categorical prediction matrix
             for i in range(fire_pred_ini.shape[0]):
                 for j in range(fire_pred_ini.shape[1]):
-                    if lc1[i, j] == lctypemat[lc_co] and val_new_pred[i, j] < below_no_pred:
+                    if lc1[i, j] == lc_type and val_new_pred[i, j] < below_no_pred:
                         val_new_pred[i, j] = -1
-                    elif lc1[i, j] == lctypemat[lc_co] and val_new_pred[i, j] > above_no_pred:
+                    elif lc1[i, j] == lc_type and val_new_pred[i, j] > above_no_pred:
                         val_new_pred[i, j] = 1
-                    elif lc1[i, j] == lctypemat[lc_co] and below_no_pred <= val_new_pred[i, j] <= above_no_pred:
+                    elif lc1[i, j] == lc_type and below_no_pred <= val_new_pred[i, j] <= above_no_pred:
                         val_new_pred[i, j] = 0
 
         # categorical prediction and observation final matrices
