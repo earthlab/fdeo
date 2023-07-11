@@ -21,11 +21,9 @@ def plot_file(input_file, months: int, year_to_plot: int, month_to_plot: int):
 
     # month to graph histograms
     mo_index = (year_to_plot - 1) * 12 + month_to_plot - 1
-
+    print(mo_index)
     # plot probabilities of observations
-    val_split = np.dsplit(val, months)
-    val = val_split[mo_index]
-    val = val.reshape((112, 244))
+    val = val[:, :, mo_index]
     # exclude LC types out of the scope of the study
     for i in range(112):
         for j in range(244):

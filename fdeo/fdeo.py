@@ -250,6 +250,7 @@ def main(
 
         # Derive vector of bins based on DI data
         varbin = np.linspace(min_1, max_1, num=bin)
+        print(min_1, max_1, varbin)
 
         # Initialize arrays to store results
         sample_size = np.zeros(bin)
@@ -263,7 +264,7 @@ def main(
 
             # Find DI in each bin
             # Get corresponding burned area in each bin
-            fire_freq_range = mat[0, :][idx3]
+            fire_freq_range = mat[1, :][idx3]
             # Calculate number of observations in each bin
             sample_size[i] = len(idx3[0])
             # Calculate sum burned area in each bin
@@ -272,11 +273,11 @@ def main(
             prob[i] = fire_freq_ave[i] / sample_size[i]
 
         # Develop linear regression model
-        x = np.array(varbin)
-        y = np.array(prob)
+        x = varbin
+        y = prob
 
         # Remove NaN from the observation input
-        idx_nan = np.isnan(x)
+        idx_nan = np.isnan(y)
         x = x[~idx_nan]
         y = y[~idx_nan]
 
