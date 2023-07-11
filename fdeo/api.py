@@ -16,21 +16,14 @@ import requests
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from osgeo import osr
-import ogr
-import gdal
+from osgeo import osr, ogr, gdal
 import numpy as np
 from pyhdf.SD import SD, SDC
 import rasterio
 from rasterio.mask import mask
 import geopandas as gpd
 import netCDF4 as nc
-
-
-# TODO: Make sure area of interest being requested is only CONUS
-VPD_SCALE_FACTOR = 100000
-SSM_SCALE_FACTOR = 10000
-
+from utils import set_tiff_resolution
 
 
 class BaseAPI:
@@ -38,6 +31,9 @@ class BaseAPI:
     Defines all the attributes and methods common to the child APIs.
     """
     PROJ_DIR = os.path.dirname(os.path.dirname(__file__))
+    LAND_COVER_GEOTRANSFORM = [-126.75, 0.25, 0, 23.875, 0, 0.25]
+    LAND_COVER_X_SIZE = 244
+    LAND_COVER_Y_SIZE = 112
 
     def __init__(self, username: str = None, password: str = None):
         """
@@ -154,7 +150,7 @@ class BaseAPI:
 
     @staticmethod
     def _create_raster(output_path: str, columns: int, rows: int, n_band: int = 1,
-                       gdal_data_type: int = gdal.GDT_UInt16,
+                       gdal_data_type: int = gdal.GDT_Float32,
                        driver: str = r'GTiff'):
         """
         Credit:
@@ -177,7 +173,7 @@ class BaseAPI:
         return output_raster
 
     def _numpy_array_to_raster(self, output_path: str, numpy_array: np.array, geo_transform,
-                               projection, n_band: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_UInt32):
+                               projection, n_band: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_Float32):
         """
         Returns a gdal raster data source
         Args:
@@ -327,7 +323,7 @@ class SSM(BaseAPI):
 
             output_tiff_file = os.path.join(output_dir, os.path.basename(files[0]).replace('.nc4', '.tif'))
 
-            self._clip_to_conus(mean_array[0] * SSM_SCALE_FACTOR, output_tiff_file)
+            self._clip_to_conus(mean_array[0], output_tiff_file)
 
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 600
@@ -344,30 +340,15 @@ class SSM(BaseAPI):
         lat_res = (lat_max - lat_min) / num_rows
 
         # Define the geotransform array in lat/lon
-        geotransform = [lon_min, lon_res, 0, lat_min, 0, lat_res]
+        input_geotransform = [lon_min, lon_res, 0, lat_min, 0, lat_res]
 
-        tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
+        # Interpolate input data and then sample each point in land cover
+        fixed_to_land_cover = set_tiff_resolution(input_array, input_geotransform, num_cols, num_rows,
+                                                  self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
+                                                  self.LAND_COVER_Y_SIZE)
 
-        with rasterio.open(tiff_file) as src:
-            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
-                geojson = json.load(f)
-            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
-
-            # Extract the data using the polygon to create a mask
-            out_image, out_transform = mask(src, polygon.geometry, nodata=0, crop=True)
-
-            # Update the metadata of the output tif file
-            out_meta = src.meta.copy()
-
-            # Open the GeoJSON file containing the polygon
-
-            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'int32',
-                             'scale': 1 / SSM_SCALE_FACTOR
-                             })
-            # Write the clipped tif file to disk
-            with rasterio.open(tiff_file, "w", **out_meta) as dest:
-                dest.write(out_image)
+        _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
+                                        gdal_data_type=gdal.GDT_Float32)
 
 
 class VPD(BaseAPI):
@@ -456,31 +437,15 @@ class VPD(BaseAPI):
         lat_res = (lat_max - lat_min) / num_rows
 
         # Define the geotransform array in lat/lon
-        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+        input_geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
 
-        tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
+        # Interpolate input data and then sample each point in land cover
+        fixed_to_land_cover = set_tiff_resolution(input_array, input_geotransform, num_cols, num_rows,
+                                                  self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
+                                                  self.LAND_COVER_Y_SIZE)
 
-        with rasterio.open(tiff_file) as src:
-            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
-                geojson = json.load(f)
-            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
-
-            # Extract the data using the polygon to create a mask
-            out_image, out_transform = mask(src, polygon.geometry, nodata=0, crop=True)
-
-            # Update the metadata of the output tif file
-            out_meta = src.meta.copy()
-
-            # Open the GeoJSON file containing the polygon
-
-            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'int32',
-                             "scale": 1 / VPD_SCALE_FACTOR
-                             })
-
-            # Write the clipped tif file to disk
-            with rasterio.open(tiff_file, "w", **out_meta) as dest:
-                dest.write(out_image)
+        _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
+                                        gdal_data_type=gdal.GDT_Float32)
 
     @staticmethod
     def calculate_vpd(vpd_file: str):
@@ -501,7 +466,7 @@ class VPD(BaseAPI):
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
 
             # TODO: Add constants for scale factors and use them in main function
-            vpd_array = vpd_array * VPD_SCALE_FACTOR
+            vpd_array = vpd_array
 
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
@@ -589,9 +554,6 @@ class EVI(BaseAPI):
         num_rows = 3600
         num_cols = 7200
 
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-
         lon_min, lat_max = -180, 90
         lon_max, lat_min = 180, -90
 
@@ -600,27 +562,13 @@ class EVI(BaseAPI):
         lat_res = (lat_max - lat_min) / num_rows
 
         # Define the geotransform array in lat/lon
-        geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
+        input_geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
 
-        tiff_file = self._numpy_array_to_raster(output_tif_file, input_array, geotransform, 'wgs84')
+        #_ = self._numpy_array_to_raster(output_tif_file, input_array, input_geotransform, 'wgs84')
 
-        with rasterio.open(tiff_file) as src:
-            with open(os.path.join(self.PROJ_DIR, 'data', 'CONUS_WGS84.geojson')) as f:
-                geojson = json.load(f)
-            polygon = gpd.GeoDataFrame.from_features(geojson['features'])
+        # Interpolate input data and then sample each point in land cover
+        fixed_to_land_cover = set_tiff_resolution(input_array, input_geotransform, num_cols, num_rows,
+                                                  self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
+                                                  self.LAND_COVER_Y_SIZE)
 
-            # Extract the data using the polygon to create a mask
-            out_image, out_transform = mask(src, polygon.geometry, nodata=0, crop=True)
-
-            # Update the metadata of the output tif file
-            out_meta = src.meta.copy()
-
-            # Open the GeoJSON file containing the polygon
-
-            out_meta.update({"driver": "GTiff", "height": out_image.shape[1], "width": out_image.shape[2],
-                             "transform": out_transform, "dtype": 'int32',
-                             'scale': 1 / 10000
-                             })
-            # Write the clipped tif file to disk
-            with rasterio.open(tiff_file, "w", **out_meta) as dest:
-                dest.write(out_image)
+        _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84')
