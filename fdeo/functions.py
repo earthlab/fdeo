@@ -17,8 +17,7 @@ def compute_spi(md, sc):
     si = np.zeros(n)
 
     for k in range(12):
-        d = y[k]
-        si[k::12] = empdis(d)
+        si[k::12] = empdis(y[k::12])
 
     return norm.ppf(si)
 
