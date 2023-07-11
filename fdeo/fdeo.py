@@ -221,7 +221,6 @@ def main(
         for i in range(firemon_tot_size_x):
             for j in range(firemon_tot_size_y):
                 if lc1[i][j] == lc_forecast['index']:
-                    print('matched index')
                     for k in range(firemon_tot_size_z):
                         # Leave the first 3-month empty to account for 2-month lead model development
                         if k - lead < 0:
@@ -240,7 +239,8 @@ def main(
         idx_nan = np.logical_or(idx_nan_1, idx_nan_2)
 
         # Filter the array to remove rows with NaN values
-        mat = np.vstack(mat[0, :][~idx_nan], mat[1, :][~idx_nan])
+        mat = np.vstack([mat[0, :][~idx_nan], mat[1, :][~idx_nan]])
+        print(mat.shape)
 
         # Bar plots to derive the regression model
         # Define number of bins
@@ -283,6 +283,7 @@ def main(
         idx_nan = np.isnan(x)
         x = x[~idx_nan]
         y = y[~idx_nan]
+        print(x, y)
 
         # Fit the regression model
         gofmat1 = np.polyfit(x, y, 2)
