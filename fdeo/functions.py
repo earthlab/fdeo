@@ -39,7 +39,7 @@ def data2index(resd, sc):
 
     for i in range(lats):
         for j in range(lons):
-            td = np.reshape(resd[i, j, :], (n_months, 1))
+            td = np.reshape(resd[i, j, :], (n_months, 0))
             si[i, j, :sc-1] = np.nan
             si[i, j, sc-1:] = compute_spi(td, sc)
 
