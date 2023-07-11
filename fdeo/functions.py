@@ -11,9 +11,7 @@ from scipy.stats import norm
 
 def compute_spi(md, sc):
     # Get the data for the time scale sc
-    a1 = np.empty((len(md), sc))
-    for i in range(sc):
-        a1[:, i] = md[i:len(md)-sc+i+1].flatten()
+    a1 = np.column_stack([md[i:len(md)-sc+i+1] for i in range(sc)])
     Y = np.sum(a1, axis=1)
     
     # Compute the SPI or SSI
