@@ -13,7 +13,7 @@ def compute_spi(md, sc):
     # Get the data for the time scale sc
     a1 = np.empty((len(md), sc))
     for i in range(sc):
-        a1[:, i] = md[i:len(md)-sc+i]
+        a1[:, i] = md[i:len(md)-sc+i+1]
     Y = np.sum(a1, axis=1)
     
     # Compute the SPI or SSI
