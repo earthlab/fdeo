@@ -11,30 +11,34 @@ from scipy.stats import norm
 
 def compute_spi(md, sc):
     # Get the data for the time scale sc
-    a1 = np.column_stack([md[i:len(md)-sc+i+1] for i in range(sc)])
-    Y = np.sum(a1, axis=1)
+    a1 = []
+    for i in range(sc):
+        a1.append(md[i:len(md)-sc+i])
+    a1 = np.array(a1)
+    Y = np.sum(a1, 0)
     
     # Compute the SPI or SSI
     n = len(Y)
     si = np.zeros((n, 1))
     
-    for k in range(1, 13):
-        d = Y[k-1::12]
-        si[k-1::12, 0] = empdis(d)
+    for k in range(12):
+        d = Y[k::12]
+        si[k::12, 0] = empdis(d)
     
-    si[:, 0] = norm.ppf(si[:, 0])
-    
-    return si.flatten()
+    si[:, 0] = norm.ppf(si[:, 0])  # inverse of cdf (percent point function)
+
+    return si
 
 
 def empdis(d):
     n = len(d)
-    bp = np.zeros(n)
+    bp = np.zeros((n, 1))
 
     for i in range(n):
-        bp[i] = np.sum(d <= d[i])
+        bp[i, 0] = np.sum(d[:, 0] <= d[i, 0])
 
     y = (bp - 0.44) / (n + 0.12)
+
     return y
 
 
