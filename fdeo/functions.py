@@ -23,7 +23,7 @@ def compute_spi(md, sc):
     
     for k in range(12):
         d = Y[k::12]
-        si[k::12, 0] = empdis(d)
+        si[k::12, 0] = empdis(d).flatten()
     
     si[:, 0] = norm.ppf(si[:, 0])  # inverse of cdf (percent point function)
 
