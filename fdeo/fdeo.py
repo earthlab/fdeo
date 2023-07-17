@@ -350,7 +350,9 @@ def main(
             # derive observation and prediction anomalies for each LC Type
             idx_lc = np.where(lc1 == lc_type)
             mat = val_new_obs[idx_lc]
+            mat = mat.reshape((len(mat), 1))
             mat1 = val_new_pred[idx_lc]
+            mat = mat.reshape((len(mat1), 1))
 
             # observation CDF
             y = empdis(mat)
