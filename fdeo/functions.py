@@ -33,7 +33,6 @@ def compute_spi(md, sc):
 def empdis(d):
     n = len(d)
     bp = np.zeros((n, 1))
-    print(n)
     for i in range(n):
         bp[i, 0] = np.sum(d[:, 0] <= d[i, 0])
 

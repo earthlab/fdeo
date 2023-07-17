@@ -316,8 +316,8 @@ def main(
 
     # Subtract prediction and observation from climatology to derive anomalies
     for i in range(0, fire_obs_ini.shape[2], 12):
-        fire_obs_ini[:, :, i:i+11] = fire_obs_ini[:, :, i:i+11] - firemon_tot_size_climatology_smoothed_3
-        fire_pred_ini[:, :, i:i+11] = fire_pred_ini[:, :, i:i+11] - firemon_tot_size_climatology_smoothed_3
+        fire_obs_ini[:, :, i:i+12] = fire_obs_ini[:, :, i:i+12] - firemon_tot_size_climatology_smoothed_3
+        fire_pred_ini[:, :, i:i+12] = fire_pred_ini[:, :, i:i+12] - firemon_tot_size_climatology_smoothed_3
 
     # TODO: Need filtering of the same size
     # Prediction data might not be in 1 year chunks
