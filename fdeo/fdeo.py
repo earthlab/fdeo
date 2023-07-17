@@ -241,7 +241,7 @@ def main(
         max_1 = np.max(mat[0, :])
 
         # Derive vector of bins based on DI data
-        varbin = np.linspace(min_1, max_1, num=bin)
+        varbin = np.linspace(min_1, max_1, num=bin+1)
 
         # Initialize arrays to store results
         sample_size = np.zeros(bin)
@@ -249,7 +249,7 @@ def main(
         prob = np.zeros(bin)
 
         # Find observations in each bin
-        for i in range(bin-1):
+        for i in range(bin):
             # Find observations in each bin
             idx3 = np.where((mat[0, :] >= varbin[i]) & (mat[0, :] <= varbin[i+1]))
 
@@ -359,8 +359,8 @@ def main(
             # prediction CDF
             y1 = empdis(mat1)
 
-            val_new_obs[idx_lc] = y
-            val_new_pred[idx_lc] = y1
+            val_new_obs[idx_lc] = y.flatten()
+            val_new_pred[idx_lc] = y1.flatten()
 
         # build matrix of CDFs (probabilistic prediction and observation matrices)
         val_new_obs_tot_1[:, :, k] = val_new_obs
@@ -388,11 +388,13 @@ def main(
             # derive observation and prediction anomalies for each LC Type
             idx_lc = np.where(lc1 == lc_type)
             mat = val_new_obs[idx_lc]
+            mat = mat.reshape((len(mat), 1))
             mat1 = val_new_pred[idx_lc]
+            mat1 = mat1.reshape((len(mat1), 1))
 
             # observation CDF
             # 33 percentile threshold for observation time series
-            y1 = empdis(mat)
+            y1 = empdis(mat).flatten()
             T1 = np.min(y1)
             T2 = np.max(y1)
             T3 = (T2 - T1) / 3
@@ -411,7 +413,7 @@ def main(
 
             # prediction CDF
             # 33 percentile threshold for prediction time series
-            y1 = empdis(mat1)
+            y1 = empdis(mat1).flatten()
             T1 = np.min(y1)
             T2 = np.max(y1)
             T3 = (T2 - T1) / 3
