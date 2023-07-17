@@ -27,13 +27,13 @@ def compute_spi(md, sc):
     
     si[:, 0] = norm.ppf(si[:, 0])  # inverse of cdf (percent point function)
 
-    return si
+    return si.flatten()
 
 
 def empdis(d):
     n = len(d)
     bp = np.zeros((n, 1))
-
+    print(n)
     for i in range(n):
         bp[i, 0] = np.sum(d[:, 0] <= d[i, 0])
 

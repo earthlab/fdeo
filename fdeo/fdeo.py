@@ -8,9 +8,9 @@ Created on Thu Jun 30 13:13:16 2022
 import os
 import argparse
 import tempfile
-import shutil
 import numpy as np
 from datetime import datetime
+from scipy.io import loadmat
 from scipy import signal
 import matplotlib.pyplot as plt
 from functions import data2index, empdis
@@ -36,7 +36,7 @@ def main(
     """
 
     # importing the land cover file (lc1.csv)
-    lc1 = np.loadtxt(os.path.join(FDEO_DIR, 'data', 'lc1.csv'), delimiter=",")
+    lc1 = loadmat(os.path.join(FDEO_DIR, 'data', 'lc1.mat'))['lc1']
     training_data_dimensions = lc1.shape
     training_data_months = 132
     """
@@ -55,24 +55,17 @@ def main(
     """
 
     # soil moisture (sm) data from 2003-2013
-    ssm_training_data = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'sm_20032013.csv'), delimiter=","
-    ).reshape((*training_data_dimensions, training_data_months))
+    ssm_training_data = loadmat(os.path.join(FDEO_DIR, 'data', 'sm_20032013.mat'))['sm_20032013']
 
     # enhanced vegetation index (EVI) data from 2003-2013
-    evi_training_data = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'EVI_20032013.csv'), delimiter=","
-    ).reshape((*training_data_dimensions, training_data_months))
+    evi_training_data = loadmat(os.path.join(FDEO_DIR, 'data', 'EVI_20032013.mat'))['EVI_20032013']
 
     # vapor pressure deficit (vpd) data from 2003-2013
-    vpd_training_data = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'vpd_20032013.csv'), delimiter=","
-    ).reshape((*training_data_dimensions, training_data_months))
+    vpd_training_data = loadmat(os.path.join(FDEO_DIR, 'data', 'vpd_20032013.mat'))['vpd_20032013']
+
 
     # Fire data from 2003-2013
-    firemon_tot_size = np.loadtxt(
-        os.path.join(FDEO_DIR, 'data', 'firemon_tot_size.csv'), delimiter=",").reshape((*training_data_dimensions,
-                                                                                        training_data_months))
+    firemon_tot_size = loadmat(os.path.join(FDEO_DIR, 'data', 'firemon_tot_size.mat'))['firemon_tot_size']
 
     # calculate the fire climatology for each month
 
@@ -96,7 +89,7 @@ def main(
         firemon_tot_size_climatology[:, :, h], smooth_filter, mode='same'
     )
 
-    firemon_tot_size_climatology_smoothed_3 /= smooth_filter.size
+    firemon_tot_size_climatology_smoothed_3 /= (smooth_filter.size)
 
     # This part of the code creates a regression model for each LC type based on
     # the "best" drought indicator (DI) and then creates a historical record of
@@ -215,7 +208,7 @@ def main(
         # First build the regression model for the LC Type initial parameters
         mat = np.empty((2, firemon_tot_size.size), dtype=float)  # Initial array
         m = 0  # Burned area for each LC. 1-5 is each diff one
-        lead = 1  # Lead time
+        lead = 2  # Lead time
         for i in range(firemon_tot_size_x):
             for j in range(firemon_tot_size_y):
                 if lc1[i][j] == lc_forecast['index']:
@@ -238,7 +231,6 @@ def main(
 
         # Filter the array to remove rows with NaN values
         mat = np.vstack([mat[0, :][~idx_nan], mat[1, :][~idx_nan]])
-        print(mat.shape)
 
         # Bar plots to derive the regression model
         # Define number of bins
@@ -250,7 +242,6 @@ def main(
 
         # Derive vector of bins based on DI data
         varbin = np.linspace(min_1, max_1, num=bin)
-        print(min_1, max_1, varbin)
 
         # Initialize arrays to store results
         sample_size = np.zeros(bin)
@@ -325,8 +316,8 @@ def main(
 
     # Subtract prediction and observation from climatology to derive anomalies
     for i in range(0, fire_obs_ini.shape[2], 12):
-        fire_obs_ini[:, :, i:i+12] = fire_obs_ini[:, :, i:i+12] - firemon_tot_size_climatology_smoothed_3
-        fire_pred_ini[:, :, i:i+12] = fire_pred_ini[:, :, i:i+12] - firemon_tot_size_climatology_smoothed_3
+        fire_obs_ini[:, :, i:i+11] = fire_obs_ini[:, :, i:i+11] - firemon_tot_size_climatology_smoothed_3
+        fire_pred_ini[:, :, i:i+11] = fire_pred_ini[:, :, i:i+11] - firemon_tot_size_climatology_smoothed_3
 
     # TODO: Need filtering of the same size
     # Prediction data might not be in 1 year chunks
