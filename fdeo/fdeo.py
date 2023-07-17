@@ -352,7 +352,7 @@ def main(
             mat = val_new_obs[idx_lc]
             mat = mat.reshape((len(mat), 1))
             mat1 = val_new_pred[idx_lc]
-            mat = mat.reshape((len(mat1), 1))
+            mat1 = mat1.reshape((len(mat1), 1))
 
             # observation CDF
             y = empdis(mat)
