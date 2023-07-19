@@ -23,7 +23,7 @@ import rasterio
 from rasterio.mask import mask
 import geopandas as gpd
 import netCDF4 as nc
-from utils import set_tiff_resolution
+from fdeo.utils import set_tiff_resolution
 
 
 class BaseAPI:
@@ -220,6 +220,7 @@ class SSM(BaseAPI):
     Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
     soil moisture data from the GLDAS mission.
     """
+    # TODO: Try Early product link / re if data cannot be found for the requested time range
     _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D.2.2/'
 
     def __init__(self, username: str = None, password: str = None):
@@ -548,7 +549,16 @@ class EVI(BaseAPI):
 
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
-            self._clip_to_conus(dataset.get(), output_tiff_file)
+            arr = dataset.get()
+
+            # Set all fill values to 0
+            fill_values = np.where(arr == -3000)
+            arr[fill_values] = 0
+
+            # Scale data
+            arr = arr * 0.0001
+
+            self._clip_to_conus(arr, output_tiff_file)
 
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 3600
@@ -563,8 +573,6 @@ class EVI(BaseAPI):
 
         # Define the geotransform array in lat/lon
         input_geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
-
-        #_ = self._numpy_array_to_raster(output_tif_file, input_array, input_geotransform, 'wgs84')
 
         # Interpolate input data and then sample each point in land cover
         fixed_to_land_cover = set_tiff_resolution(input_array, input_geotransform, num_cols, num_rows,

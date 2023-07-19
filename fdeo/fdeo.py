@@ -244,14 +244,14 @@ def main(
         varbin = np.linspace(min_1, max_1, num=bin+1)
 
         # Initialize arrays to store results
-        sample_size = np.zeros(bin)
-        fire_freq_ave = np.zeros(bin)
-        prob = np.zeros(bin)
+        sample_size = np.zeros(bin+1)
+        fire_freq_ave = np.zeros(bin+1)
+        prob = np.zeros(bin+1)
 
         # Find observations in each bin
-        for i in range(bin):
+        for i in range(bin+1):
             # Find observations in each bin
-            idx3 = np.where((mat[0, :] >= varbin[i]) & (mat[0, :] <= varbin[i+1]))
+            idx3 = np.where((mat[0, :] >= varbin[i]) & (mat[0, :] <= (max_1 + ((max_1 - min_1) / bin) if i == bin else varbin[i+1])))
 
             # Find DI in each bin
             # Get corresponding burned area in each bin
