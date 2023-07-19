@@ -222,14 +222,16 @@ class SSM(BaseAPI):
     """
     # TODO: Try Early product link / re if data cannot be found for the requested time range
     _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D.2.2/'
+    _BASE_EP_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D_EP.2.2/'
 
     def __init__(self, username: str = None, password: str = None):
         super().__init__(username=username, password=password)
-        self._dates = self._retrieve_dates()
-        self._file_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
-        self._tif_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.tif$'
+        self._dates = self._retrieve_dates(self._BASE_URL)
+        self._early_product_dates = self._retrieve_dates(self._BASE_EP_URL)
+        self._file_re = r'GLDAS\_CLSM025\_DA1\_D?(\_EP).A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
+        self._tif_re = r'GLDAS\_CLSM025\_DA1\_D?(\_EP).A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.tif$'
 
-    def _retrieve_dates(self) -> List[datetime]:
+    def _retrieve_dates(self, url: str) -> List[datetime]:
         """
         Finds which dates are available from the server and returns them as a list of datetime objects
         Returns:
@@ -238,11 +240,11 @@ class SSM(BaseAPI):
         year_re = r'\d{4}'
         month_re = r'\d{2}'
         date_re = r'\d{4}/\d{2}'
-        years = self.retrieve_links(self._BASE_URL)
+        years = self.retrieve_links(url)
         links = []
         for year in years:
             if re.match(year_re, year):
-                months = self.retrieve_links(os.path.join(self._BASE_URL, year))
+                months = self.retrieve_links(os.path.join(url, year))
                 for month in months:
                     if re.match(month_re, month):
                         links.append(os.path.join(year, month))
@@ -267,16 +269,17 @@ class SSM(BaseAPI):
             os.makedirs(outdir, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
-        t_stop = self._dates[-1] if t_stop is None else t_stop
-        date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year and
-                      t_start.month <= date.month <= t_stop.month]
+        t_stop = self._early_product_dates[-1] if t_stop is None else t_stop
+        date_range = [date for date in self._dates + self._early_product_dates if
+                      t_start.year <= date.year <= t_stop.year and t_start.month <= date.month <= t_stop.month]
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
 
         for date in date_range:
-            url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + date.strftime('%m') + '/')
+            base_url = self._BASE_URL if date in self._dates else self._BASE_EP_URL
+            url = urllib.parse.urljoin(base_url, date.strftime('%Y') + '/' + date.strftime('%m') + '/')
             files = self.retrieve_links(url)
 
             for file in files:
