@@ -228,8 +228,8 @@ class SSM(BaseAPI):
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates(self._BASE_URL)
         self._early_product_dates = self._retrieve_dates(self._BASE_EP_URL)
-        self._file_re = r'GLDAS\_CLSM025\_DA1\_D?(\_EP).A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
-        self._tif_re = r'GLDAS\_CLSM025\_DA1\_D?(\_EP).A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.tif$'
+        self._file_re = r'GLDAS\_CLSM025\_DA1\_D(?:_EP)?.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
+        self._tif_re = r'GLDAS\_CLSM025\_DA1\_D(?:_EP)?.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.tif$'
 
     def _retrieve_dates(self, url: str) -> List[datetime]:
         """
