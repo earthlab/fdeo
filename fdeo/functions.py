@@ -18,10 +18,12 @@ def compute_spi(md, sc):
     n = len(y)
     si = np.zeros((n, 1))
 
-    for k in range(1, 13):
-        d = y[k-1::12]
+    month_range_end = n if n < 12 else 12
+
+    for k in range(0, month_range_end):
+        d = y[k::12]
         d = d.reshape((len(d), 1))
-        si[k-1::12, 0] = empdis(d).flatten()
+        si[k::12, 0] = empdis(d).flatten()
 
     si[:, 0] = norm.ppf(si[:, 0])
 

@@ -103,6 +103,9 @@ class BaseAPI:
         link = query[0]
         dest = query[1]
 
+        if os.path.exists(dest):
+            return
+
         pm = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         pm.add_password(None, "https://urs.earthdata.nasa.gov", self._username, self._password)
         cookie_jar = CookieJar()
@@ -351,6 +354,7 @@ class SSM(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
+        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                         gdal_data_type=gdal.GDT_Float32)
 
@@ -448,6 +452,7 @@ class VPD(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
+        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                         gdal_data_type=gdal.GDT_Float32)
 
@@ -582,4 +587,5 @@ class EVI(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
+        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84')

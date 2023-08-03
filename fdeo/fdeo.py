@@ -549,11 +549,11 @@ if __name__ == '__main__':
         print(stacked_vpd_data.shape)
 
         # TODO: Just for testing
-        ssm._numpy_array_to_raster('ssm_plot.tif', np.flipud(stacked_ssm_data[:,:,0]), [-126.75, 0.25, 0, 51.75, 0, -0.25],
+        ssm._numpy_array_to_raster('ssm_plot.tif', stacked_ssm_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25],
                                    'wgs84', gdal_data_type=gdal.GDT_Float32)
-        ssm._numpy_array_to_raster('evi_plot.tif', np.flipud(stacked_evi_data[:,:,0]), [-126.75, 0.25, 0, 51.75, 0, -0.25],
+        ssm._numpy_array_to_raster('evi_plot.tif', stacked_evi_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25],
                                    'wgs84', gdal_data_type=gdal.GDT_Float32)
-        ssm._numpy_array_to_raster('vpd_plot.tif', np.flipud(stacked_vpd_data[:,:,0]), [-126.75, 0.25, 0, 51.75, 0, -0.25],
+        ssm._numpy_array_to_raster('vpd_plot.tif', stacked_vpd_data[:,:,0], [-126.75, 0.25, 0, 51.75, 0, -0.25],
                                    'wgs84', gdal_data_type=gdal.GDT_Float32)
     print('Opening')
     # stacked_ssm_data = gdal.Open(args.ssm_test)
