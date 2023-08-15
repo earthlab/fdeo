@@ -35,14 +35,15 @@ class BaseAPI:
     LAND_COVER_X_SIZE = 244
     LAND_COVER_Y_SIZE = 112
 
-    def __init__(self, username: str = None, password: str = None):
+    def __init__(self, username: str = None, password: str = None, lazy: bool = False):
         """
         Initializes the common attributes required for each data type's API
         """
         self._username = username
         self._password = password
         self._core_count = os.cpu_count()
-        self._configure()
+        if not lazy:
+            self._configure()
         self._file_re = None
         self._tif_re = None
 
@@ -227,10 +228,11 @@ class SSM(BaseAPI):
     _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D.2.2/'
     _BASE_EP_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D_EP.2.2/'
 
-    def __init__(self, username: str = None, password: str = None):
-        super().__init__(username=username, password=password)
-        self._dates = self._retrieve_dates(self._BASE_URL)
-        self._early_product_dates = self._retrieve_dates(self._BASE_EP_URL)
+    def __init__(self, username: str = None, password: str = None, lazy: bool = False):
+        super().__init__(username=username, password=password, lazy=lazy)
+        if not lazy:
+            self._dates = self._retrieve_dates(self._BASE_URL)
+            self._early_product_dates = self._retrieve_dates(self._BASE_EP_URL)
         self._file_re = r'GLDAS\_CLSM025\_DA1\_D(?:_EP)?.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
         self._tif_re = r'GLDAS\_CLSM025\_DA1\_D(?:_EP)?.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.tif$'
 
@@ -274,7 +276,7 @@ class SSM(BaseAPI):
         t_start = self._dates[0] if t_start is None else t_start
         t_stop = self._early_product_dates[-1] if t_stop is None else t_stop
         date_range = [date for date in self._dates + self._early_product_dates if
-                      t_start.year <= date.year <= t_stop.year and t_start.month <= date.month <= t_stop.month]
+                      t_start.year <= date.year <= t_stop.year]
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
@@ -295,14 +297,18 @@ class SSM(BaseAPI):
                     if t_start <= file_date <= t_stop:
                         remote = urllib.parse.urljoin(url, file)
                         dest = os.path.join(outdir, file)
+                        if os.path.exists(dest):
+                            continue
                         req = (remote, dest)
                         if req not in queries:
                             queries.append(req)
         super().download_time_series(queries, outdir)
         return outdir
 
-    def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
-        time_series_dir = self.download_time_series(t_start, t_stop)
+    def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None,
+                                   time_series_dir: str = None):
+        if time_series_dir is None:
+            time_series_dir = self.download_time_series(t_start, t_stop)
 
         # Take the mean for each day of the month
         files_by_month = {}
@@ -322,9 +328,13 @@ class SSM(BaseAPI):
             daily_ssm = []
             files = files_by_month[month_group]
             for file in files:
-                nc_file = nc.Dataset(file, 'r')
-                dataset_name = 'SoilMoist_S_tavg'
-                daily_ssm.append(nc_file.variables[dataset_name][:])
+                try:
+                    nc_file = nc.Dataset(file, 'r')
+                    dataset_name = 'SoilMoist_S_tavg'
+                    daily_ssm.append(nc_file.variables[dataset_name][:])
+                except OSError:
+                    print(file)
+                    continue
             stacked_array = np.stack(daily_ssm, axis=0)
             mean_array = np.mean(stacked_array, axis=0)
 
