@@ -1,7 +1,6 @@
 import getpass
 import os
 import re
-import shutil
 import sys
 import urllib
 import tempfile
@@ -10,7 +9,6 @@ from http.cookiejar import CookieJar
 from multiprocessing import Pool
 from typing import Tuple, List
 
-import json
 import certifi
 import requests
 from bs4 import BeautifulSoup
@@ -19,11 +17,8 @@ from tqdm import tqdm
 from osgeo import osr, ogr, gdal
 import numpy as np
 from pyhdf.SD import SD, SDC
-import rasterio
-from rasterio.mask import mask
-import geopandas as gpd
 import netCDF4 as nc
-from fdeo.utils import set_tiff_resolution
+from utils import set_tiff_resolution
 
 
 # TODO: Make sure the arrays are in the correct orientation and that the
@@ -137,6 +132,7 @@ class BaseAPI:
             outdir (str): Path to the output file directory
         """
         # From earthlab firedpy package
+        print(queries)
         if len(queries) > 0:
             print("Retrieving data...")
             try:
@@ -499,7 +495,7 @@ class EVI(BaseAPI):
     Defines all the attributes and methods specific to the MODIS API. This API is used to request and download
     Enhanced Vegetation Index (EVI) data from the MODIS satellite.
     """
-    _BASE_URL = 'https://e4ftl01.cr.usgs.gov/MOLT/MOD13C2.006/'
+    _BASE_URL = 'https://e4ftl01.cr.usgs.gov/MOLT/MOD13C2.061/'
 
     def __init__(self, username: str = None, password: str = None):
         """
@@ -508,8 +504,8 @@ class EVI(BaseAPI):
         """
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
-        self._file_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
-        self._tif_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\_(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\_\.tif$'
+        self._file_re = r'MOD13C2\.A2\d{6}\.061\.\d{13}\.hdf$'
+        self._tif_re = r'MOD13C2\.A2\d{6}\.061\.\d{13}\_(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\_\.tif$'
 
     def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """
@@ -531,6 +527,8 @@ class EVI(BaseAPI):
         t_stop = self._dates[-1] if t_stop is None else t_stop
         date_range = [date for date in self._dates if t_start <= date <= t_stop]
 
+        print(date_range)
+
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
@@ -538,6 +536,7 @@ class EVI(BaseAPI):
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y.%m.%d') + '/')
             files = self.retrieve_links(url)
+            print(files)
             for file in files:
                 if re.match(self._file_re, file) is not None:
                     remote = urllib.parse.urljoin(url, file)

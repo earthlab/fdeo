@@ -3,7 +3,7 @@
 """
 Created on Thu Jun 30 13:13:16 2022
 
-@author: lukefanguna
+@author: erickverleye
 """
 import os
 import argparse
@@ -22,7 +22,7 @@ FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
 class FDEO:
-    MODEL_PATH = os.path.join(FDEO_DIR, 'data', 'model_coefficientes.pkl')
+    MODEL_PATH = os.path.join(FDEO_DIR, 'data', 'model_coefficients.pkl')
 
     def __init__(self):
         # % ID for each Land cover type
@@ -392,8 +392,9 @@ if __name__ == '__main__':
     if args.start_date is None and args.end_date is None:
         two_months_ago = datetime.now() - timedelta(weeks=8)
         next_month = two_months_ago.replace(day=28) + timedelta(days=4)
-        start_date = two_months_ago.replace(day=1)
-        end_date = next_month - timedelta(days=next_month.day)
+        start_date = two_months_ago.replace(day=1).replace(hour=0).replace(minute=0).replace(second=0)\
+            .replace(microsecond=0)
+        end_date = next_month.replace(day=28).replace(hour=23).replace(minute=59).replace(second=59)
 
     elif args.start_date is not None and args.end_date is not None:
         start_date = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date is not None else None
@@ -414,10 +415,11 @@ if __name__ == '__main__':
         raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
                          ' or -u and -p arguments if you would like to download from the API')
 
+    print(username, password)
     # Download all of the data
-    ssm = SSM(username=username, password=password)
+    #ssm = SSM(username=username, password=password)
     evi = EVI(username=username, password=password)
-    vpd = VPD(username=username, password=password)
+    #vpd = VPD(username=username, password=password)
 
     # Create temporary directories for the files
     tempdir = tempfile.mkdtemp(prefix='fdeo')
@@ -428,9 +430,11 @@ if __name__ == '__main__':
     os.makedirs(evi_dir)
     os.makedirs(vpd_dir)
 
-    ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
+    print(start_date, end_date)
+
+    #ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
     evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
-    vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
+    #vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
 
     sorted_evi_files = evi.sort_tif_files(evi_dir)
     sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
