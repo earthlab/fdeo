@@ -29,6 +29,7 @@ def compute_spi(md, sc):
 
     return si.flatten()
 
+
 def empdis(d):
     n = len(d)
     bp = np.zeros((n, 1))

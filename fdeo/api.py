@@ -26,6 +26,8 @@ import netCDF4 as nc
 from fdeo.utils import set_tiff_resolution
 
 
+# TODO: Make sure the arrays are in the correct orientation and that the
+
 class BaseAPI:
     """
     Defines all the attributes and methods common to the child APIs.

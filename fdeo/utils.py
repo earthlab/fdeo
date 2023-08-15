@@ -9,7 +9,7 @@ import os
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
-def stack_raster_months(sorted_input_files: List[str]):
+def stack_raster_months(sorted_input_files: List[str]) -> np.array:
     month_data = []
     for file in sorted_input_files:
         raster = gdal.Open(file)
