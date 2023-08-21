@@ -132,9 +132,8 @@ class BaseAPI:
             outdir (str): Path to the output file directory
         """
         # From earthlab firedpy package
-        print(queries)
         if len(queries) > 0:
-            print("Retrieving data...")
+            print("Retrieving data... skipping over any cached files")
             try:
                 with Pool(int(self._core_count / 2)) as pool:
                     for _ in tqdm(pool.imap_unordered(self._download, queries), total=len(queries)):
@@ -174,8 +173,9 @@ class BaseAPI:
         output_raster = driver.Create(output_path, columns, rows, n_band, eType=gdal_data_type)
         return output_raster
 
-    def _numpy_array_to_raster(self, output_path: str, numpy_array: np.array, geo_transform,
-                               projection, n_band: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_Float32):
+    @staticmethod
+    def _numpy_array_to_raster(output_path: str, numpy_array: np.array, geo_transform,
+                               projection, n_bands: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_Float32):
         """
         Returns a gdal raster data source
         Args:
@@ -183,22 +183,23 @@ class BaseAPI:
             numpy_array (np.array): Numpy array containing data to write to raster
             geo_transform (gdal GeoTransform): tuple of six values that represent the top left corner coordinates, the
             pixel size in x and y directions, and the rotation of the image
-            n_band (int): The band to write to in the output raster
+            n_bands (int): The band to write to in the output raster
             no_data (int): Value in numpy array that should be treated as no data
             gdal_data_type (int): Gdal data type of raster (see gdal documentation for list of values)
         """
-        rows, columns = numpy_array.shape
+        rows, columns = numpy_array.shape[0], numpy_array.shape[1]
 
         # create output raster
-        output_raster = self._create_raster(output_path, int(columns), int(rows), n_band, gdal_data_type)
+        output_raster = BaseAPI._create_raster(output_path, int(columns), int(rows), n_bands, gdal_data_type)
 
         output_raster.SetProjection(projection)
         output_raster.SetGeoTransform(geo_transform)
-        output_band = output_raster.GetRasterBand(1)
-        output_band.SetNoDataValue(no_data)
-        output_band.WriteArray(numpy_array)
-        output_band.FlushCache()
-        output_band.ComputeStatistics(False)
+        for i in range(n_bands):
+            output_band = output_raster.GetRasterBand(i+1)
+            output_band.SetNoDataValue(no_data)
+            output_band.WriteArray(numpy_array[:, :, i] if numpy_array.ndim == 3 else numpy_array)
+            output_band.FlushCache()
+            output_band.ComputeStatistics(False)
 
         if not os.path.exists(output_path):
             raise Exception('Failed to create raster: %s' % output_path)
@@ -306,7 +307,7 @@ class SSM(BaseAPI):
     def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None,
                                    time_series_dir: str = None):
         if time_series_dir is None:
-            time_series_dir = self.download_time_series(t_start, t_stop)
+            time_series_dir = self.download_time_series(t_start, t_stop, output_dir)
 
         # Take the mean for each day of the month
         files_by_month = {}
@@ -331,14 +332,17 @@ class SSM(BaseAPI):
                     dataset_name = 'SoilMoist_S_tavg'
                     daily_ssm.append(nc_file.variables[dataset_name][:])
                 except OSError:
-                    print(file)
                     continue
             stacked_array = np.stack(daily_ssm, axis=0)
-            mean_array = np.mean(stacked_array, axis=0)
+            sum_array = np.sum(stacked_array, axis=0)[0]
+
+            # Make the off nominal value NaN
+            idx = np.where(sum_array < 0)
+            sum_array[idx] = np.NaN
 
             output_tiff_file = os.path.join(output_dir, os.path.basename(files[0]).replace('.nc4', '.tif'))
 
-            self._clip_to_conus(mean_array[0], output_tiff_file)
+            self._clip_to_conus(sum_array, output_tiff_file)
 
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 600
@@ -477,9 +481,11 @@ class VPD(BaseAPI):
         return vpd
 
     def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
-        time_series_dir = self.download_time_series(t_start, t_stop)
+        time_series_dir = self.download_time_series(t_start, t_stop, output_dir)
 
         for file in os.listdir(time_series_dir):
+            if not file.endswith('.hdf'):
+                continue
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
 
             # TODO: Add constants for scale factors and use them in main function
@@ -527,8 +533,6 @@ class EVI(BaseAPI):
         t_stop = self._dates[-1] if t_stop is None else t_stop
         date_range = [date for date in self._dates if t_start <= date <= t_stop]
 
-        print(date_range)
-
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
@@ -536,7 +540,6 @@ class EVI(BaseAPI):
         for date in date_range:
             url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y.%m.%d') + '/')
             files = self.retrieve_links(url)
-            print(files)
             for file in files:
                 if re.match(self._file_re, file) is not None:
                     remote = urllib.parse.urljoin(url, file)
@@ -559,20 +562,23 @@ class EVI(BaseAPI):
                        re.match(date_re, link.strip('/')) is not None])
 
     def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
-        time_series_dir = self.download_time_series(t_start, t_stop)
+        time_series_dir = self.download_time_series(t_start, t_stop, output_dir)
 
         for file in os.listdir(time_series_dir):
+            if not file.endswith('.hdf'):
+                continue
+
             hdf_file = SD(os.path.join(time_series_dir, file), SDC.READ)
 
             dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
 
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
-            arr = dataset.get()
+            arr = dataset.get().astype(float)
 
-            # Set all fill values to 0
-            fill_values = np.where(arr == -3000)
-            arr[fill_values] = 0
+            # Set all off nominal values to 0
+            idx = np.where(arr == -3000)
+            arr[idx] = np.NaN
 
             # Scale data
             arr = arr * 0.0001

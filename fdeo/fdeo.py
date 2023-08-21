@@ -13,16 +13,31 @@ from datetime import datetime, timedelta
 from scipy.io import loadmat, savemat
 from scipy import signal
 from functions import data2index, empdis
-from api import VPD, EVI, SSM
+from api import VPD, EVI, SSM, BaseAPI
 from utils import stack_raster_months
 import pickle
 from typing import List, Dict, Any
+from osgeo import gdal
+import matplotlib.pyplot as plt
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
 class FDEO:
     MODEL_PATH = os.path.join(FDEO_DIR, 'data', 'model_coefficients.pkl')
+    MONTHS = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'November',
+        'December'
+    ]
 
     def __init__(self):
         # % ID for each Land cover type
@@ -55,6 +70,7 @@ class FDEO:
         self._climatology = self._calculate_training_data_climatology()
 
         if not os.path.exists(self.MODEL_PATH):
+            print(f'Model parameters not found at {self.MODEL_PATH}, training model now')
             self.train_model()
         with open(self.MODEL_PATH, 'rb') as file:
             coefficients = pickle.load(file)
@@ -233,8 +249,22 @@ class FDEO:
 
         return fire_data
 
-    def plot_prob_and_categorical(self, fire_data: np.array, fire_data_start_date: datetime, output_prob_file: str,
-                                  output_cat_file: str):
+    def _create_plots(self, output_dir: str, results_start_date: datetime, data: np.array):
+        n_monts = data.shape[2]
+
+        for month in range(n_monts):
+            results_date = results_start_date + timedelta(weeks=4*month)
+            title = f'{self.MONTHS[results_date.month - 1]} {results_date.year}'
+            plt.imshow(data[:, :, month], origin='lower', cmap='viridis', aspect='auto')
+            plt.title(title)
+
+            colorbar = plt.colorbar(label='Colorbar Label')
+            outpath = os.path.join(output_dir, title + '.png')
+            plt.savefig(outpath, dpi=300, bbox_inches='tight')
+
+
+    def calculate_prob_and_categorical(self, fire_data: np.array, fire_data_start_date: datetime, output_prob_file: str,
+                                       output_cat_file: str):
         # Subtract prediction and observation from climatology to derive anomalies
         # TODO: For new prediction data, will need to match up the month of the new data to the month index of
         #  climatology
@@ -256,6 +286,7 @@ class FDEO:
 
                 # probabilistic CDF
                 y = empdis(mat).flatten()
+                val_new_prob_m[idx_lc] = y
 
                 # 33 percentile threshold for observation time series
                 T1 = np.min(y)
@@ -284,15 +315,18 @@ class FDEO:
                         elif self.lc1[i, j] == lc_type and below_no_obs <= val_new_cat_m[i, j] <= above_no_obs:
                             val_new_cat_m[i, j] = 0
 
-                val_new_prob_m[idx_lc] = y
-                val_new_cat_m[idx_lc] = y
-
             # build matrix of CDFs (probabilistic and categorical observation matrices)
             val_new_prob[:, :, k] = val_new_prob_m
             val_new_cat[:, :, k] = val_new_cat_m
 
-        savemat(output_prob_file, {'data': val_new_prob})
-        savemat(output_cat_file, {'data': val_new_cat})
+        BaseAPI._numpy_array_to_raster(output_prob_file, val_new_prob, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
+                                       n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
+        self._create_plots(os.path.join(os.path.dirname(output_prob_file), 'probability_plots'),
+                           fire_data_start_date + timedelta(weeks=4*self._lead), val_new_prob)
+        BaseAPI._numpy_array_to_raster(output_cat_file, val_new_cat, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
+                                       n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
+        self._create_plots(os.path.join(os.path.dirname(output_cat_file), 'categorical_plots'),
+                           fire_data_start_date + timedelta(weeks=4 * self._lead), val_new_cat)
 
     def inference(self, land_cover_types: List[Dict[str, Any]]) -> np.array:
         inference_results_array = np.full(land_cover_types[0]['data'].shape, np.nan)
@@ -300,13 +334,14 @@ class FDEO:
             lc_index = land_cover_type['index']
             data = land_cover_type['data']
             # Now build a historical forecast matrix based on the developed regression model for each LC Type
-            for k in range(self._lead, data.shape[2] + self._lead):
+            # Each value in the output array is 2 months ahead
+            for k in range(data.shape[2]):
                 for i in range(data.shape[0]):
                     for j in range(data.shape[1]):
                         if self.lc1[i, j] == lc_index:
-                            inference_results_array[i, j, k] = (
-                                    self.coefficients[0] * (data[i, j, k - self._lead] ** 2)
-                                    + self.coefficients[1] * data[i, j, k - self._lead]
+                            inference_results_array[i, j, k - self._lead] = (
+                                    self.coefficients[0] * (data[i, j, k] ** 2)
+                                    + self.coefficients[1] * data[i, j, k]
                                     + self.coefficients[2]
                             )
 
@@ -332,27 +367,40 @@ def main(
     fdeo = FDEO()
 
     # First see if training data observation results have been made, if not create them
-    training_data_obs_prob_file = os.path.join(FDEO_DIR, 'data', 'training_data_results', 'obs_probability.mat')
-    training_data_obs_cat_file = os.path.join(FDEO_DIR, 'data', 'training_data_results', 'obs_categorical.mat')
+    training_data_dir = os.path.join(FDEO_DIR, 'data', 'training_data_results')
+    os.makedirs(training_data_dir, exist_ok=True)
+    training_data_obs_prob_file =  os.path.join(training_data_dir, 'obs_probability.tif')
+    training_data_obs_cat_file = os.path.join(training_data_dir, 'obs_categorical.tif')
     if not os.path.exists(training_data_obs_prob_file) or not os.path.exists(training_data_obs_cat_file):
-        fdeo.plot_prob_and_categorical(fdeo.firemon_tot_size, datetime(2003, 1, 1), training_data_obs_prob_file,
-                                       training_data_obs_cat_file)
+        print(f'Writing training data observation files to {training_data_obs_prob_file}, {training_data_obs_cat_file}')
+        fdeo.calculate_prob_and_categorical(fdeo.firemon_tot_size, datetime(2003, 1, 1), training_data_obs_prob_file,
+                                            training_data_obs_cat_file)
 
     # See if training data prediction results have been made, if not create them
-    training_data_pred_prob_file = os.path.join(FDEO_DIR, 'data', 'training_data_results', 'pred_probability.txt')
-    training_data_pred_cat_file = os.path.join(FDEO_DIR, 'data', 'training_data_results', 'pred_categorical.txt')
+    training_data_pred_prob_file = os.path.join(training_data_dir, 'pred_probability.tif')
+    training_data_pred_cat_file = os.path.join(training_data_dir, 'pred_categorical.tif')
     if not os.path.exists(training_data_pred_prob_file) or not os.path.exists(training_data_pred_cat_file):
+        print(f'Writing training data prediction files to {training_data_pred_prob_file}, {training_data_pred_cat_file}')
         training_land_cover_dict = fdeo.calculate_land_cover_dict(fdeo.ssm_training_data, fdeo.evi_training_data,
                                                                   fdeo.vpd_training_data)
         training_data_fire_inference = fdeo.inference(training_land_cover_dict)
-        fdeo.plot_prob_and_categorical(training_data_fire_inference, datetime(2003, 1, 1), training_data_pred_prob_file,
-                                       training_data_pred_cat_file)
+        fdeo.calculate_prob_and_categorical(training_data_fire_inference, datetime(2003, 1, 1),
+                                            training_data_pred_prob_file, training_data_pred_cat_file)
 
     # Make predictions with new data
+    print('Plotting predictions for 2 month lead times')
     prediction_land_cover_dict = fdeo.calculate_land_cover_dict(ssm_data, evi_data, vpd_data)
     prediction_data_fire_inference = fdeo.inference(prediction_land_cover_dict)
-    fdeo.plot_prob_and_categorical(prediction_data_fire_inference, data_start_date, 'pred_prob_test.tif',
-                                   'pred_cat_test.tif')
+
+    # Write output tif files and plots
+    results_start_date = start_date + timedelta(weeks=8)
+    results_end_date = end_date + timedelta(weeks=8)
+    output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results', f'{results_start_date}_{results_end_date}')
+    os.makedirs(output_dir, exist_ok=True)
+
+    fdeo.calculate_prob_and_categorical(prediction_data_fire_inference, data_start_date,
+                                        os.path.join(output_dir, 'prediction_probability.tif'),
+                                        os.path.join(output_dir, 'predication_categorical.tif'))
 
 
 if __name__ == '__main__':
@@ -415,26 +463,24 @@ if __name__ == '__main__':
         raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
                          ' or -u and -p arguments if you would like to download from the API')
 
-    print(username, password)
     # Download all of the data
-    #ssm = SSM(username=username, password=password)
+    ssm = SSM(username=username, password=password)
     evi = EVI(username=username, password=password)
-    #vpd = VPD(username=username, password=password)
+    vpd = VPD(username=username, password=password)
 
     # Create temporary directories for the files
-    tempdir = tempfile.mkdtemp(prefix='fdeo')
-    ssm_dir = os.path.join(tempdir, 'ssm')
-    evi_dir = os.path.join(tempdir, 'evi')
-    vpd_dir = os.path.join(tempdir, 'vpd')
-    os.makedirs(ssm_dir)
-    os.makedirs(evi_dir)
-    os.makedirs(vpd_dir)
+    data_dir = os.path.join(FDEO_DIR, 'data')
+    ssm_dir = os.path.join(data_dir, 'ssm')
+    evi_dir = os.path.join(data_dir, 'evi')
+    vpd_dir = os.path.join(data_dir, 'vpd')
+    os.makedirs(ssm_dir, exist_ok=True)
+    os.makedirs(evi_dir, exist_ok=True)
+    os.makedirs(vpd_dir, exist_ok=True)
 
-    print(start_date, end_date)
 
-    #ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
+    ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
     evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
-    #vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
+    vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
 
     sorted_evi_files = evi.sort_tif_files(evi_dir)
     sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
@@ -444,9 +490,15 @@ if __name__ == '__main__':
     stacked_vpd_data = stack_raster_months(sorted_vpd_files)
     stacked_ssm_data = stack_raster_months(sorted_ssm_files)
 
-    print(stacked_ssm_data.shape)
-    print(stacked_evi_data.shape)
-    print(stacked_vpd_data.shape)
+    ssm._numpy_array_to_raster('ssm_plot.tif', stacked_ssm_data[:, :, 0],
+                               [-126.75, 0.25, 0, 51.75, 0, -0.25],
+                               'wgs84', gdal_data_type=gdal.GDT_Float32)
+    ssm._numpy_array_to_raster('evi_plot.tif', stacked_evi_data[:, :, 0],
+                               [-126.75, 0.25, 0, 51.75, 0, -0.25],
+                               'wgs84', gdal_data_type=gdal.GDT_Float32)
+    ssm._numpy_array_to_raster('vpd_plot.tif', stacked_vpd_data[:, :, 0],
+                               [-126.75, 0.25, 0, 51.75, 0, -0.25],
+                               'wgs84', gdal_data_type=gdal.GDT_Float32)
 
     main(
         ssm_data=stacked_ssm_data,
@@ -454,13 +506,3 @@ if __name__ == '__main__':
         vpd_data=stacked_vpd_data,
         data_start_date=start_date
         )
-
-    if stacked_ssm_data is not None:
-        print(ssm_dir)
-        # shutil.rmtree(ssm_dir)
-    if stacked_evi_data is not None:
-        print(evi_dir)
-        # shutil.rmtree(evi_dir)
-    if stacked_vpd_data is not None:
-        print(vpd_dir)
-        # shutil.rmtree(vpd_dir)

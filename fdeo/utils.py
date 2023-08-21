@@ -13,9 +13,7 @@ def stack_raster_months(sorted_input_files: List[str]) -> np.array:
     month_data = []
     for file in sorted_input_files:
         raster = gdal.Open(file)
-        print('opened raster')
         data = raster.GetRasterBand(1).ReadAsArray()
-        print('got data')
         month_data.append(data)
 
     return stack_arrays(month_data)
@@ -36,21 +34,14 @@ def set_tiff_resolution(input_res_array: str, input_res_geotransform: List[float
     # Lats and lons must be ascending. For most data, the GeoTransform defines the top left corner of the data and thus
     # the lats will be descending. If this is the case, sort the lats and flip the data about the "x" axis
     if input_res_lats[0] > input_res_lats[1]:
-        print('Flipping')
         input_res_lats = sorted(input_res_lats)
         input_res_array = np.flip(input_res_array, axis=0)  # Flip about the 'lon' axis for testing
-
-    print(input_res_array.shape, 'ira')
-
-    print(input_res_lats[0], input_res_lats[-1], input_res_lons[0], input_res_lons[-1])
 
     input_res_interp = RegularGridInterpolator((input_res_lats, input_res_lons),
                                                input_res_array, method='linear', bounds_error=False)
 
     target_res_lons, target_res_lats = get_geo_locations_from_geotransform(target_resolution_geotransform,
                                                                            target_x_size, target_y_size)
-
-    print(target_res_lats[0], target_res_lats[-1], target_res_lons[0], target_res_lons[-1])
 
     target_lat_mesh, target_lon_res = np.meshgrid(target_res_lats, target_res_lons, indexing='ij')
 
