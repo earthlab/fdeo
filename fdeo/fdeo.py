@@ -352,7 +352,7 @@ class FDEO:
         BaseAPI._numpy_array_to_raster(output_cat_file, val_new_cat, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
         self._create_plots(os.path.join(os.path.dirname(output_cat_file), 'categorical_plots'),
-                           fire_data_start_date + timedelta(weeks=4 * self._lead), val_new_cat)
+                           fire_data_start_date + timedelta(weeks=4 * self._lead), val_new_cat, categorical=True)
 
     def inference(self, land_cover_types: List[Dict[str, Any]]) -> np.array:
         inference_results_array = np.full(land_cover_types[0]['data'].shape, np.nan)
@@ -421,7 +421,8 @@ def main(
     # Write output tif files and plots
     results_start_date = start_date + timedelta(weeks=8)
     results_end_date = end_date + timedelta(weeks=8)
-    output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results', f'{results_start_date}_{results_end_date}')
+    print(data_start_date, end_date, results_start_date, results_end_date)
+    output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results', f'{results_start_date.year}.{results_start_date.month}_{results_end_date.year}.{results_end_date.month}')
     os.makedirs(output_dir, exist_ok=True)
 
     fdeo.calculate_prob_and_categorical(prediction_data_fire_inference, data_start_date,
