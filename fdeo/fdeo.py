@@ -13,7 +13,7 @@ from scipy.io import loadmat
 from scipy import signal
 from functions import data2index, empdis
 from api import VPD, EVI, SSM, BaseAPI
-from utils import stack_raster_months, last_day_of_month, two_months_before
+from utils import stack_raster_months, last_day_of_month, two_months_before, calc_months_after
 import pickle
 from typing import List, Dict, Any
 from osgeo import gdal
@@ -255,7 +255,7 @@ class FDEO:
         os.makedirs(output_dir, exist_ok=True)
 
         for month in range(n_monts):
-            results_date = results_start_date + timedelta(weeks=4*month)
+            results_date = calc_months_after(results_start_date, month)
             title = f'{self.MONTHS[results_date.month - 1]} {results_date.year}'
 
             fig, ax = plt.subplots()
@@ -347,11 +347,11 @@ class FDEO:
         BaseAPI._numpy_array_to_raster(output_prob_file, val_new_prob, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
         self._create_plots(os.path.join(os.path.dirname(output_prob_file), 'probability_plots'),
-                           fire_data_start_date + timedelta(weeks=4*self._lead), val_new_prob)
+                           calc_months_after(fire_data_start_date, 2) + timedelta(weeks=4*self._lead), val_new_prob)
         BaseAPI._numpy_array_to_raster(output_cat_file, val_new_cat, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
         self._create_plots(os.path.join(os.path.dirname(output_cat_file), 'categorical_plots'),
-                           fire_data_start_date + timedelta(weeks=4 * self._lead), val_new_cat, categorical=True)
+                           calc_months_after(fire_data_start_date, 2), val_new_cat, categorical=True)
 
     def inference(self, land_cover_types: List[Dict[str, Any]]) -> np.array:
         inference_results_array = np.full(land_cover_types[0]['data'].shape, np.nan)
