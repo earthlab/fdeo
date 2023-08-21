@@ -419,8 +419,8 @@ def main(
     prediction_data_fire_inference = fdeo.inference(prediction_land_cover_dict)
 
     # Write output tif files and plots
-    results_start_date = start_date + timedelta(weeks=8)
-    results_end_date = end_date + timedelta(weeks=8)
+    results_start_date = start_date + timedelta(days=60)
+    results_end_date = end_date + timedelta(days=60)
     print(data_start_date, end_date, results_start_date, results_end_date)
     output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results', f'{results_start_date.year}.{results_start_date.month}_{results_end_date.year}.{results_end_date.month}')
     os.makedirs(output_dir, exist_ok=True)
