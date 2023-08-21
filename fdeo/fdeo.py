@@ -251,6 +251,7 @@ class FDEO:
 
     def _create_plots(self, output_dir: str, results_start_date: datetime, data: np.array):
         n_monts = data.shape[2]
+        os.makedirs(output_dir, exist_ok=True)
 
         for month in range(n_monts):
             results_date = results_start_date + timedelta(weeks=4*month)
@@ -258,10 +259,9 @@ class FDEO:
             plt.imshow(data[:, :, month], origin='lower', cmap='viridis', aspect='auto')
             plt.title(title)
 
-            colorbar = plt.colorbar(label='Colorbar Label')
+            plt.colorbar(label='Colorbar Label')
             outpath = os.path.join(output_dir, title + '.png')
             plt.savefig(outpath, dpi=300, bbox_inches='tight')
-
 
     def calculate_prob_and_categorical(self, fire_data: np.array, fire_data_start_date: datetime, output_prob_file: str,
                                        output_cat_file: str):
@@ -369,7 +369,7 @@ def main(
     # First see if training data observation results have been made, if not create them
     training_data_dir = os.path.join(FDEO_DIR, 'data', 'training_data_results')
     os.makedirs(training_data_dir, exist_ok=True)
-    training_data_obs_prob_file =  os.path.join(training_data_dir, 'obs_probability.tif')
+    training_data_obs_prob_file = os.path.join(training_data_dir, 'obs_probability.tif')
     training_data_obs_cat_file = os.path.join(training_data_dir, 'obs_categorical.tif')
     if not os.path.exists(training_data_obs_prob_file) or not os.path.exists(training_data_obs_cat_file):
         print(f'Writing training data observation files to {training_data_obs_prob_file}, {training_data_obs_cat_file}')
@@ -476,7 +476,6 @@ if __name__ == '__main__':
     os.makedirs(ssm_dir, exist_ok=True)
     os.makedirs(evi_dir, exist_ok=True)
     os.makedirs(vpd_dir, exist_ok=True)
-
 
     ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
     evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
