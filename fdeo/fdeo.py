@@ -35,6 +35,7 @@ class FDEO:
         'July',
         'August',
         'September',
+        'October',
         'November',
         'December'
     ]
