@@ -347,7 +347,7 @@ class FDEO:
         BaseAPI._numpy_array_to_raster(output_prob_file, val_new_prob, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
         self._create_plots(os.path.join(os.path.dirname(output_prob_file), 'probability_plots'),
-                           calc_months_after(fire_data_start_date, 2) + timedelta(weeks=4*self._lead), val_new_prob)
+                           calc_months_after(fire_data_start_date, 2), val_new_prob)
         BaseAPI._numpy_array_to_raster(output_cat_file, val_new_cat, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
         self._create_plots(os.path.join(os.path.dirname(output_cat_file), 'categorical_plots'),
@@ -428,7 +428,7 @@ def main(
 
     fdeo.calculate_prob_and_categorical(prediction_data_fire_inference, data_start_date,
                                         os.path.join(output_dir, 'prediction_probability.tif'),
-                                        os.path.join(output_dir, 'predication_categorical.tif'))
+                                        os.path.join(output_dir, 'prediction_categorical.tif'))
 
 
 
