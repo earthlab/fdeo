@@ -3,10 +3,26 @@ from osgeo import gdal
 from scipy.interpolate import RegularGridInterpolator
 import numpy as np
 import os
+import calendar
+from datetime import datetime
 
 
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
+
+
+def last_day_of_month(year, month):
+    return calendar.monthrange(year, month)[1]
+
+
+def two_months_before(date: datetime):
+    year = date.year
+    curr_month = date.month
+    two_month = curr_month - 2
+    if two_month <= 0:
+        year -= 1
+        two_month += 12
+    return datetime(year, two_month, 1)
 
 
 def stack_raster_months(sorted_input_files: List[str]) -> np.array:

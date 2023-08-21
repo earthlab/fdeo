@@ -7,14 +7,13 @@ Created on Thu Jun 30 13:13:16 2022
 """
 import os
 import argparse
-import tempfile
 import numpy as np
 from datetime import datetime, timedelta
-from scipy.io import loadmat, savemat
+from scipy.io import loadmat
 from scipy import signal
 from functions import data2index, empdis
 from api import VPD, EVI, SSM, BaseAPI
-from utils import stack_raster_months
+from utils import stack_raster_months, last_day_of_month, two_months_before
 import pickle
 from typing import List, Dict, Any
 from osgeo import gdal
@@ -374,6 +373,8 @@ class FDEO:
         return inference_results_array
 
 
+
+
 def main(
        ssm_data: np.array,
        evi_data: np.array,
@@ -430,13 +431,14 @@ def main(
                                         os.path.join(output_dir, 'predication_categorical.tif'))
 
 
+
 if __name__ == '__main__':
     # TODO: Add option to input existing csv file other than default
     parser = argparse.ArgumentParser()
     parser.add_argument('--start_date', type=str, required=False,
-                        help='Begin date in YYYY-MM-DD format of datafiles to be downloaded from API')
+                        help='Begin date in YYYY-MM format of datafiles to be downloaded from API')
     parser.add_argument('--end_date', type=str, required=False,
-                        help='End date in YYYY-MM-DD format of datafiles to be downloaded from API')
+                        help='End date in YYYY-MM format of datafiles to be downloaded from API')
     parser.add_argument('-u', '--username', type=str, required=False, dest='username',
                         help='Username to https://urs.earthdata.nasa.gov/ . '
                              'Credentials can also be provided by providing a value to --credentials argument')
@@ -465,15 +467,19 @@ if __name__ == '__main__':
 
     # Make predictions for this month and the next month
     if args.start_date is None and args.end_date is None:
-        two_months_ago = datetime.now() - timedelta(weeks=8)
+        two_months_ago = two_months_before(datetime.now())
         next_month = two_months_ago.replace(day=28) + timedelta(days=4)
         start_date = two_months_ago.replace(day=1).replace(hour=0).replace(minute=0).replace(second=0)\
             .replace(microsecond=0)
-        end_date = next_month.replace(day=28).replace(hour=23).replace(minute=59).replace(second=59)
+        end_date = next_month.replace(day=last_day_of_month(next_month.year, next_month.day))\
+            .replace(hour=23).replace(minute=59).replace(second=59).replace(microsecond=999999)
 
     elif args.start_date is not None and args.end_date is not None:
-        start_date = datetime.strptime(args.start_date, "%Y-%m-%d") if args.start_date is not None else None
-        end_date = datetime.strptime(args.end_date, "%Y-%m-%d") if args.end_date is not None else None
+        start_date = datetime.strptime(args.start_date, "%Y-%m").replace(day=1).replace(hour=0).replace(minute=0)\
+            .replace(second=0).replace(microsecond=0) if args.start_date is not None else None
+        end_date = datetime.strptime(args.end_date, "%Y-%m") if args.end_date is not None else None
+        end_date.replace(day=last_day_of_month(end_date.year, end_date.day))\
+            .replace(hour=23).replace(minute=59).replace(second=59).replace(microsecond=999999)
 
     else:
         raise ValueError('Must specify both start date and end date or neither')
