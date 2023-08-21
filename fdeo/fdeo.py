@@ -260,7 +260,7 @@ class FDEO:
             plt.imshow(data[:, :, month], origin='lower', cmap='viridis', aspect='auto')
             plt.title(title)
 
-            plt.colorbar(label='Colorbar Label')
+            plt.colorbar()
             outpath = os.path.join(output_dir, title + '.png')
             plt.savefig(outpath, dpi=300, bbox_inches='tight')
 
