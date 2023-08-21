@@ -19,6 +19,7 @@ import pickle
 from typing import List, Dict, Any
 from osgeo import gdal
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -250,17 +251,41 @@ class FDEO:
 
         return fire_data
 
-    def _create_plots(self, output_dir: str, results_start_date: datetime, data: np.array):
+    def _create_plots(self, output_dir: str, results_start_date: datetime, data: np.array, categorical: bool = False):
         n_monts = data.shape[2]
         os.makedirs(output_dir, exist_ok=True)
 
         for month in range(n_monts):
             results_date = results_start_date + timedelta(weeks=4*month)
             title = f'{self.MONTHS[results_date.month - 1]} {results_date.year}'
-            plt.imshow(data[:, :, month], origin='lower', cmap='viridis', aspect='auto')
+
+            fig, ax = plt.subplots()
+
+            cmaplist = [(0, 128, 0), (255, 255, 255), (128, 0, 0)]
+            cmap = plt.cm.jet
+            cmap = mpl.colors.LinearSegmentedColormap.from_list(
+                'Custom cmap', cmaplist, cmap.N)
+
+            if categorical:
+                norm = mpl.colors.BoundaryNorm([-1, -0.667, 0.667, 1], cmap.N)
+                shw = ax.imshow(data[:, :, month], cmap=cmap, norm=norm)
+                bar = fig.colorbar(shw, ticks=[])
+                bar.ax.text(4, 1, "above normal", fontsize=10, va='center')
+                bar.ax.text(4, 0, "normal", fontsize=10, va='center')
+                bar.ax.text(4, -1, "below normal", fontsize=10, va='center')
+            else:
+                shw = ax.imshow(data[:, :, month], cmap=cmap)
+                bar = fig.colorbar(shw, ticks=np.arange(0, 1.2, 0.2))
+                bar.ax.text(4, 1, "above normal", fontsize=10, va='center')
+                bar.ax.text(4, 0.5, "normal", fontsize=10, va='center')
+                bar.ax.text(4, 0, "below normal", fontsize=10, va='center')
+
+            # show plot with labels
+            plt.xlabel('Longitude')
+            plt.ylabel('Latitude')
+
             plt.title(title)
 
-            plt.colorbar()
             outpath = os.path.join(output_dir, title + '.png')
             plt.savefig(outpath, dpi=300, bbox_inches='tight')
 
