@@ -28,7 +28,7 @@ def two_months_before(date: datetime):
 def calc_months_after(date: datetime, n_months: int):
     curr_month = date.month
     year = date.year + ((curr_month + n_months) // 12)
-    return datetime(year, n_months - (12 * (n_months // 12)), 1)
+    return datetime(year, curr_month + (n_months - (12 * (n_months // 12))), 1)
 
 
 def stack_raster_months(sorted_input_files: List[str]) -> np.array:
