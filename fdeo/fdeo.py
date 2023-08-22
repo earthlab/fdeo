@@ -251,21 +251,22 @@ class FDEO:
         return fire_data
 
     def _create_plots(self, output_dir: str, results_start_date: datetime, data: np.array, categorical: bool = False):
-        n_monts = data.shape[2]
+        n_months = data.shape[2]
         os.makedirs(output_dir, exist_ok=True)
 
-        for month in range(n_monts):
+        for month in range(n_months):
             results_date = calc_months_after(results_start_date, month)
+            print(month, results_date.year, results_date.month)
             title = f'{self.MONTHS[results_date.month - 1]} {results_date.year}'
 
             fig, ax = plt.subplots()
 
-            cmaplist = [(0, 128, 0), (255, 255, 255), (128, 0, 0)]
-            cmap = plt.cm.jet
-            cmap = mpl.colors.LinearSegmentedColormap.from_list(
-                'Custom cmap', cmaplist, cmap.N)
-
             if categorical:
+                cmaplist = [(0, 128, 0), (255, 255, 255), (128, 0, 0)]
+                cmap = plt.cm.jet
+                cmap = mpl.colors.LinearSegmentedColormap.from_list(
+                    'Custom cmap', cmaplist, cmap.N)
+                cmap.set_bad(color='white')
                 norm = mpl.colors.BoundaryNorm([-1, -0.667, 0.667, 1], cmap.N)
                 shw = ax.imshow(data[:, :, month], cmap=cmap, norm=norm)
                 bar = fig.colorbar(shw, ticks=[])
@@ -273,8 +274,11 @@ class FDEO:
                 bar.ax.text(4, 0, "normal", fontsize=10, va='center')
                 bar.ax.text(4, -1, "below normal", fontsize=10, va='center')
             else:
-                shw = ax.imshow(data[:, :, month], cmap=cmap)
-                bar = fig.colorbar(shw, ticks=np.arange(0, 1.2, 0.2))
+                cmap = mpl.colors.LinearSegmentedColormap.from_list('custom_cmap',
+                                                                    [(0, 'green'), (0.5, 'white'), (1, 'red')])
+                cmap.set_bad(color='white')
+                shw = ax.imshow(data[:, :, month], cmap=cmap, vmin=0, vmax=1)
+                bar = fig.colorbar(shw)
                 bar.ax.text(4, 1, "above normal", fontsize=10, va='center')
                 bar.ax.text(4, 0.5, "normal", fontsize=10, va='center')
                 bar.ax.text(4, 0, "below normal", fontsize=10, va='center')
@@ -287,20 +291,16 @@ class FDEO:
 
             outpath = os.path.join(output_dir, title + '.png')
             plt.savefig(outpath, dpi=300, bbox_inches='tight')
+            plt.close()
 
-    def calculate_prob_and_categorical(self, fire_data: np.array, fire_data_start_date: datetime, output_prob_file: str,
-                                       output_cat_file: str):
-        # Subtract prediction and observation from climatology to derive anomalies
-        # TODO: For new prediction data, will need to match up the month of the new data to the month index of
-        #  climatology
+    def calculate_probability(self, fire_data: np.array, fire_data_start_date: datetime, output_probability_file: str,
+                              observation: bool = False):
         fire_data = self._subtract_climatology(fire_data, fire_data_start_date)
 
         val_new_prob = np.zeros_like(fire_data)
-        val_new_cat = np.zeros_like(fire_data)
         for k in range(fire_data.shape[2]):
             # matrix of observation and prediction anomalies for each month
             val_new_prob_m = fire_data[:, :, k]
-            val_new_cat_m = fire_data[:, :, k]
 
             # derive CDF for each LC type
             for lc_type in self.lc_type_indices:
@@ -309,9 +309,40 @@ class FDEO:
                 mat = val_new_prob_m[idx_lc]
                 mat = mat.reshape((len(mat), 1))
 
+                val_new_prob_m[idx_lc] = empdis(mat).flatten()
+
+            val_new_prob[:, :, k] = val_new_prob_m
+
+        for i in range(fire_data.shape[0]):
+            for j in range(fire_data.shape[1]):
+                if self.lc1[i, j] not in self.lc_type_indices:
+                    val_new_prob[i, j, :] = np.NaN
+
+        print(np.nanmax(val_new_prob), np.nanmin(val_new_prob))
+        BaseAPI._numpy_array_to_raster(output_probability_file, val_new_prob, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
+                                       n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
+        self._create_plots(os.path.join(os.path.dirname(output_probability_file), 'probability_plots'),
+                           calc_months_after(fire_data_start_date, 0 if observation else self._lead), val_new_prob)
+
+    def calculate_categorical(self, fire_data: np.array, fire_data_start_date: datetime, output_categorical_file: str,
+                              observation: bool = False):
+        # Subtract prediction and observation from climatology to derive anomalies
+        fire_data = self._subtract_climatology(fire_data, fire_data_start_date)
+
+        val_new_cat = np.zeros_like(fire_data)
+        for k in range(fire_data.shape[2]):
+            # matrix of observation and prediction anomalies for each month
+            val_new_cat_m = fire_data[:, :, k]
+
+            # derive CDF for each LC type
+            for lc_type in self.lc_type_indices:
+                # derive observation and prediction anomalies for each LC Type
+                idx_lc = np.where(self.lc1 == lc_type)
+                mat = val_new_cat_m[idx_lc]
+                mat = mat.reshape((len(mat), 1))
+
                 # probabilistic CDF
                 y = empdis(mat).flatten()
-                val_new_prob_m[idx_lc] = y
 
                 # 33 percentile threshold for observation time series
                 T1 = np.min(y)
@@ -333,25 +364,26 @@ class FDEO:
                 # populate categorical prediction matrix
                 for i in range(fire_data.shape[0]):
                     for j in range(fire_data.shape[1]):
-                        if self.lc1[i, j] == lc_type and val_new_cat_m[i, j] < below_no_obs:
-                            val_new_cat_m[i, j] = -1
-                        elif self.lc1[i, j] == lc_type and val_new_cat_m[i, j] > above_no_obs:
-                            val_new_cat_m[i, j] = 1
-                        elif self.lc1[i, j] == lc_type and below_no_obs <= val_new_cat_m[i, j] <= above_no_obs:
-                            val_new_cat_m[i, j] = 0
+                        if self.lc1[i, j] == lc_type:
+                            if val_new_cat_m[i, j] < below_no_obs:
+                                val_new_cat_m[i, j] = -1
+                            elif val_new_cat_m[i, j] > above_no_obs:
+                                val_new_cat_m[i, j] = 1
+                            elif below_no_obs <= val_new_cat_m[i, j] <= above_no_obs:
+                                val_new_cat_m[i, j] = 0
 
-            # build matrix of CDFs (probabilistic and categorical observation matrices)
-            val_new_prob[:, :, k] = val_new_prob_m
             val_new_cat[:, :, k] = val_new_cat_m
 
-        BaseAPI._numpy_array_to_raster(output_prob_file, val_new_prob, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
+        for i in range(fire_data.shape[0]):
+            for j in range(fire_data.shape[1]):
+                if self.lc1[i, j] not in self.lc_type_indices:
+                    val_new_cat[i, j, :] = np.NaN
+
+        BaseAPI._numpy_array_to_raster(output_categorical_file, val_new_cat, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
-        self._create_plots(os.path.join(os.path.dirname(output_prob_file), 'probability_plots'),
-                           calc_months_after(fire_data_start_date, 2), val_new_prob)
-        BaseAPI._numpy_array_to_raster(output_cat_file, val_new_cat, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
-                                       n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
-        self._create_plots(os.path.join(os.path.dirname(output_cat_file), 'categorical_plots'),
-                           calc_months_after(fire_data_start_date, 2), val_new_cat, categorical=True)
+        self._create_plots(os.path.join(os.path.dirname(output_categorical_file), 'categorical_plots'),
+                           calc_months_after(fire_data_start_date, 0 if observation else self._lead), val_new_cat,
+                           categorical=True)
 
     def inference(self, land_cover_types: List[Dict[str, Any]]) -> np.array:
         inference_results_array = np.full(land_cover_types[0]['data'].shape, np.nan)
@@ -394,25 +426,29 @@ def main(
     fdeo = FDEO()
 
     # First see if training data observation results have been made, if not create them
-    training_data_dir = os.path.join(FDEO_DIR, 'data', 'training_data_results')
-    os.makedirs(training_data_dir, exist_ok=True)
-    training_data_obs_prob_file = os.path.join(training_data_dir, 'obs_probability.tif')
-    training_data_obs_cat_file = os.path.join(training_data_dir, 'obs_categorical.tif')
+    training_data_observation_dir = os.path.join(FDEO_DIR, 'data', 'training_data_observation_results')
+    os.makedirs(training_data_observation_dir, exist_ok=True)
+    training_data_obs_prob_file = os.path.join(training_data_observation_dir, 'obs_probability.tif')
+    training_data_obs_cat_file = os.path.join(training_data_observation_dir, 'obs_categorical.tif')
     if not os.path.exists(training_data_obs_prob_file) or not os.path.exists(training_data_obs_cat_file):
         print(f'Writing training data observation files to {training_data_obs_prob_file}, {training_data_obs_cat_file}')
-        fdeo.calculate_prob_and_categorical(fdeo.firemon_tot_size, datetime(2003, 1, 1), training_data_obs_prob_file,
-                                            training_data_obs_cat_file)
+        fdeo.calculate_probability(fdeo.firemon_tot_size, datetime(2003, 1, 1), training_data_obs_prob_file,
+                                   observation=True)
+        fdeo.calculate_categorical(fdeo.firemon_tot_size, datetime(2003, 1, 1), training_data_obs_cat_file,
+                                   observation=True)
 
     # See if training data prediction results have been made, if not create them
-    training_data_pred_prob_file = os.path.join(training_data_dir, 'pred_probability.tif')
-    training_data_pred_cat_file = os.path.join(training_data_dir, 'pred_categorical.tif')
+    training_data_prediction_dir = os.path.join(FDEO_DIR, 'data', 'training_data_prediction_results')
+    os.makedirs(training_data_prediction_dir, exist_ok=True)
+    training_data_pred_prob_file = os.path.join(training_data_prediction_dir, 'pred_probability.tif')
+    training_data_pred_cat_file = os.path.join(training_data_prediction_dir, 'pred_categorical.tif')
     if not os.path.exists(training_data_pred_prob_file) or not os.path.exists(training_data_pred_cat_file):
         print(f'Writing training data prediction files to {training_data_pred_prob_file}, {training_data_pred_cat_file}')
         training_land_cover_dict = fdeo.calculate_land_cover_dict(fdeo.ssm_training_data, fdeo.evi_training_data,
                                                                   fdeo.vpd_training_data)
         training_data_fire_inference = fdeo.inference(training_land_cover_dict)
-        fdeo.calculate_prob_and_categorical(training_data_fire_inference, datetime(2003, 1, 1),
-                                            training_data_pred_prob_file, training_data_pred_cat_file)
+        fdeo.calculate_probability(training_data_fire_inference, datetime(2003, 1, 1), training_data_pred_prob_file)
+        fdeo.calculate_categorical(training_data_fire_inference, datetime(2003, 1, 1), training_data_pred_cat_file)
 
     # Make predictions with new data
     print('Plotting predictions for 2 month lead times')
@@ -426,10 +462,10 @@ def main(
     output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results', f'{results_start_date.year}.{results_start_date.month}_{results_end_date.year}.{results_end_date.month}')
     os.makedirs(output_dir, exist_ok=True)
 
-    fdeo.calculate_prob_and_categorical(prediction_data_fire_inference, data_start_date,
-                                        os.path.join(output_dir, 'prediction_probability.tif'),
-                                        os.path.join(output_dir, 'prediction_categorical.tif'))
-
+    fdeo.calculate_probability(prediction_data_fire_inference, data_start_date,
+                               os.path.join(output_dir, 'prediction_probability.tif'))
+    fdeo.calculate_categorical(prediction_data_fire_inference, data_start_date,
+                               os.path.join(output_dir, 'prediction_categorical.tif'))
 
 
 if __name__ == '__main__':
