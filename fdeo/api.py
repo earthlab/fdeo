@@ -1,7 +1,6 @@
 import getpass
 import os
 import re
-import shutil
 import sys
 import urllib
 import tempfile
@@ -10,7 +9,6 @@ from http.cookiejar import CookieJar
 from multiprocessing import Pool
 from typing import Tuple, List
 
-import json
 import certifi
 import requests
 from bs4 import BeautifulSoup
@@ -19,12 +17,11 @@ from tqdm import tqdm
 from osgeo import osr, ogr, gdal
 import numpy as np
 from pyhdf.SD import SD, SDC
-import rasterio
-from rasterio.mask import mask
-import geopandas as gpd
 import netCDF4 as nc
 from utils import set_tiff_resolution
 
+
+# TODO: Make sure the arrays are in the correct orientation and that the
 
 class BaseAPI:
     """
@@ -35,14 +32,15 @@ class BaseAPI:
     LAND_COVER_X_SIZE = 244
     LAND_COVER_Y_SIZE = 112
 
-    def __init__(self, username: str = None, password: str = None):
+    def __init__(self, username: str = None, password: str = None, lazy: bool = False):
         """
         Initializes the common attributes required for each data type's API
         """
         self._username = username
         self._password = password
         self._core_count = os.cpu_count()
-        self._configure()
+        if not lazy:
+            self._configure()
         self._file_re = None
         self._tif_re = None
 
@@ -103,6 +101,9 @@ class BaseAPI:
         link = query[0]
         dest = query[1]
 
+        if os.path.exists(dest):
+            return
+
         pm = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         pm.add_password(None, "https://urs.earthdata.nasa.gov", self._username, self._password)
         cookie_jar = CookieJar()
@@ -132,7 +133,7 @@ class BaseAPI:
         """
         # From earthlab firedpy package
         if len(queries) > 0:
-            print("Retrieving data...")
+            print("Retrieving data... skipping over any cached files")
             try:
                 with Pool(int(self._core_count / 2)) as pool:
                     for _ in tqdm(pool.imap_unordered(self._download, queries), total=len(queries)):
@@ -172,8 +173,9 @@ class BaseAPI:
         output_raster = driver.Create(output_path, columns, rows, n_band, eType=gdal_data_type)
         return output_raster
 
-    def _numpy_array_to_raster(self, output_path: str, numpy_array: np.array, geo_transform,
-                               projection, n_band: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_Float32):
+    @staticmethod
+    def _numpy_array_to_raster(output_path: str, numpy_array: np.array, geo_transform,
+                               projection, n_bands: int = 1, no_data: int = 0, gdal_data_type: int = gdal.GDT_Float32):
         """
         Returns a gdal raster data source
         Args:
@@ -181,22 +183,23 @@ class BaseAPI:
             numpy_array (np.array): Numpy array containing data to write to raster
             geo_transform (gdal GeoTransform): tuple of six values that represent the top left corner coordinates, the
             pixel size in x and y directions, and the rotation of the image
-            n_band (int): The band to write to in the output raster
+            n_bands (int): The band to write to in the output raster
             no_data (int): Value in numpy array that should be treated as no data
             gdal_data_type (int): Gdal data type of raster (see gdal documentation for list of values)
         """
-        rows, columns = numpy_array.shape
+        rows, columns = numpy_array.shape[0], numpy_array.shape[1]
 
         # create output raster
-        output_raster = self._create_raster(output_path, int(columns), int(rows), n_band, gdal_data_type)
+        output_raster = BaseAPI._create_raster(output_path, int(columns), int(rows), n_bands, gdal_data_type)
 
         output_raster.SetProjection(projection)
         output_raster.SetGeoTransform(geo_transform)
-        output_band = output_raster.GetRasterBand(1)
-        output_band.SetNoDataValue(no_data)
-        output_band.WriteArray(numpy_array)
-        output_band.FlushCache()
-        output_band.ComputeStatistics(False)
+        for i in range(n_bands):
+            output_band = output_raster.GetRasterBand(i+1)
+            output_band.SetNoDataValue(no_data)
+            output_band.WriteArray(numpy_array[:, :, i] if numpy_array.ndim == 3 else numpy_array)
+            output_band.FlushCache()
+            output_band.ComputeStatistics(False)
 
         if not os.path.exists(output_path):
             raise Exception('Failed to create raster: %s' % output_path)
@@ -220,15 +223,19 @@ class SSM(BaseAPI):
     Defines all the attributes and methods specific to the OPeNDAP API. This API is used to request and download
     soil moisture data from the GLDAS mission.
     """
+    # TODO: Try Early product link / re if data cannot be found for the requested time range
     _BASE_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D.2.2/'
+    _BASE_EP_URL = 'https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D_EP.2.2/'
 
-    def __init__(self, username: str = None, password: str = None):
-        super().__init__(username=username, password=password)
-        self._dates = self._retrieve_dates()
-        self._file_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
-        self._tif_re = r'GLDAS\_CLSM025\_DA1\_D.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.tif$'
+    def __init__(self, username: str = None, password: str = None, lazy: bool = False):
+        super().__init__(username=username, password=password, lazy=lazy)
+        if not lazy:
+            self._dates = self._retrieve_dates(self._BASE_URL)
+            self._early_product_dates = self._retrieve_dates(self._BASE_EP_URL)
+        self._file_re = r'GLDAS\_CLSM025\_DA1\_D(?:_EP)?.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.nc4$'
+        self._tif_re = r'GLDAS\_CLSM025\_DA1\_D(?:_EP)?.A(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\.022\.tif$'
 
-    def _retrieve_dates(self) -> List[datetime]:
+    def _retrieve_dates(self, url: str) -> List[datetime]:
         """
         Finds which dates are available from the server and returns them as a list of datetime objects
         Returns:
@@ -237,11 +244,11 @@ class SSM(BaseAPI):
         year_re = r'\d{4}'
         month_re = r'\d{2}'
         date_re = r'\d{4}/\d{2}'
-        years = self.retrieve_links(self._BASE_URL)
+        years = self.retrieve_links(url)
         links = []
         for year in years:
             if re.match(year_re, year):
-                months = self.retrieve_links(os.path.join(self._BASE_URL, year))
+                months = self.retrieve_links(os.path.join(url, year))
                 for month in months:
                     if re.match(month_re, month):
                         links.append(os.path.join(year, month))
@@ -266,16 +273,17 @@ class SSM(BaseAPI):
             os.makedirs(outdir, exist_ok=True)
 
         t_start = self._dates[0] if t_start is None else t_start
-        t_stop = self._dates[-1] if t_stop is None else t_stop
-        date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year and
-                      t_start.month <= date.month <= t_stop.month]
+        t_stop = self._early_product_dates[-1] if t_stop is None else t_stop
+        date_range = [date for date in self._dates + self._early_product_dates if
+                      t_start.year <= date.year <= t_stop.year]
         if not date_range:
             raise ValueError('There is no data available in the time range requested')
 
         queries = []
 
         for date in date_range:
-            url = urllib.parse.urljoin(self._BASE_URL, date.strftime('%Y') + '/' + date.strftime('%m') + '/')
+            base_url = self._BASE_URL if date in self._dates else self._BASE_EP_URL
+            url = urllib.parse.urljoin(base_url, date.strftime('%Y') + '/' + date.strftime('%m') + '/')
             files = self.retrieve_links(url)
 
             for file in files:
@@ -288,14 +296,18 @@ class SSM(BaseAPI):
                     if t_start <= file_date <= t_stop:
                         remote = urllib.parse.urljoin(url, file)
                         dest = os.path.join(outdir, file)
+                        if os.path.exists(dest):
+                            continue
                         req = (remote, dest)
                         if req not in queries:
                             queries.append(req)
         super().download_time_series(queries, outdir)
         return outdir
 
-    def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
-        time_series_dir = self.download_time_series(t_start, t_stop)
+    def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None,
+                                   time_series_dir: str = None):
+        if time_series_dir is None:
+            time_series_dir = self.download_time_series(t_start, t_stop, output_dir)
 
         # Take the mean for each day of the month
         files_by_month = {}
@@ -315,15 +327,22 @@ class SSM(BaseAPI):
             daily_ssm = []
             files = files_by_month[month_group]
             for file in files:
-                nc_file = nc.Dataset(file, 'r')
-                dataset_name = 'SoilMoist_S_tavg'
-                daily_ssm.append(nc_file.variables[dataset_name][:])
+                try:
+                    nc_file = nc.Dataset(file, 'r')
+                    dataset_name = 'SoilMoist_S_tavg'
+                    daily_ssm.append(nc_file.variables[dataset_name][:])
+                except OSError:
+                    continue
             stacked_array = np.stack(daily_ssm, axis=0)
-            mean_array = np.mean(stacked_array, axis=0)
+            sum_array = np.sum(stacked_array, axis=0)[0]
+
+            # Make the off nominal value NaN
+            idx = np.where(sum_array < 0)
+            sum_array[idx] = np.NaN
 
             output_tiff_file = os.path.join(output_dir, os.path.basename(files[0]).replace('.nc4', '.tif'))
 
-            self._clip_to_conus(mean_array[0], output_tiff_file)
+            self._clip_to_conus(sum_array, output_tiff_file)
 
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 600
@@ -347,6 +366,7 @@ class SSM(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
+        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                         gdal_data_type=gdal.GDT_Float32)
 
@@ -444,6 +464,7 @@ class VPD(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
+        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                         gdal_data_type=gdal.GDT_Float32)
 
@@ -460,9 +481,11 @@ class VPD(BaseAPI):
         return vpd
 
     def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
-        time_series_dir = self.download_time_series(t_start, t_stop)
+        time_series_dir = self.download_time_series(t_start, t_stop, output_dir)
 
         for file in os.listdir(time_series_dir):
+            if not file.endswith('.hdf'):
+                continue
             vpd_array = self.calculate_vpd(os.path.join(time_series_dir, file))
 
             # TODO: Add constants for scale factors and use them in main function
@@ -478,7 +501,7 @@ class EVI(BaseAPI):
     Defines all the attributes and methods specific to the MODIS API. This API is used to request and download
     Enhanced Vegetation Index (EVI) data from the MODIS satellite.
     """
-    _BASE_URL = 'https://e4ftl01.cr.usgs.gov/MOLT/MOD13C2.006/'
+    _BASE_URL = 'https://e4ftl01.cr.usgs.gov/MOLT/MOD13C2.061/'
 
     def __init__(self, username: str = None, password: str = None):
         """
@@ -487,8 +510,8 @@ class EVI(BaseAPI):
         """
         super().__init__(username=username, password=password)
         self._dates = self._retrieve_dates()
-        self._file_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\.hdf$'
-        self._tif_re = r'MOD13C2\.A2\d{6}\.006\.\d{13}\_(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\_\.tif$'
+        self._file_re = r'MOD13C2\.A2\d{6}\.061\.\d{13}\.hdf$'
+        self._tif_re = r'MOD13C2\.A2\d{6}\.061\.\d{13}\_(?P<year>\d{4})(?P<month>\d{2})(?P<day>\d{2})\_\.tif$'
 
     def download_time_series(self, t_start: datetime = None, t_stop: datetime = None, outdir: str = None) -> str:
         """
@@ -539,16 +562,28 @@ class EVI(BaseAPI):
                        re.match(date_re, link.strip('/')) is not None])
 
     def create_clipped_time_series(self, output_dir: str, t_start: datetime = None, t_stop: datetime = None):
-        time_series_dir = self.download_time_series(t_start, t_stop)
+        time_series_dir = self.download_time_series(t_start, t_stop, output_dir)
 
         for file in os.listdir(time_series_dir):
+            if not file.endswith('.hdf'):
+                continue
+
             hdf_file = SD(os.path.join(time_series_dir, file), SDC.READ)
 
             dataset = hdf_file.select('CMG 0.05 Deg Monthly EVI')
 
             output_tiff_file = os.path.join(output_dir, file.replace('.hdf', '.tif'))
 
-            self._clip_to_conus(dataset.get(), output_tiff_file)
+            arr = dataset.get().astype(float)
+
+            # Set all off nominal values to 0
+            idx = np.where(arr == -3000)
+            arr[idx] = np.NaN
+
+            # Scale data
+            arr = arr * 0.0001
+
+            self._clip_to_conus(arr, output_tiff_file)
 
     def _clip_to_conus(self, input_array: np.array, output_tif_file: str):
         num_rows = 3600
@@ -564,11 +599,10 @@ class EVI(BaseAPI):
         # Define the geotransform array in lat/lon
         input_geotransform = [lon_min, lon_res, 0, lat_max, 0, -lat_res]
 
-        #_ = self._numpy_array_to_raster(output_tif_file, input_array, input_geotransform, 'wgs84')
-
         # Interpolate input data and then sample each point in land cover
         fixed_to_land_cover = set_tiff_resolution(input_array, input_geotransform, num_cols, num_rows,
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
+        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84')
