@@ -500,14 +500,14 @@ if __name__ == '__main__':
         next_month = two_months_ago.replace(day=28) + timedelta(days=4)
         start_date = two_months_ago.replace(day=1).replace(hour=0).replace(minute=0).replace(second=0)\
             .replace(microsecond=0)
-        end_date = next_month.replace(day=last_day_of_month(next_month.year, next_month.day))\
+        end_date = next_month.replace(day=last_day_of_month(next_month.year, next_month.month))\
             .replace(hour=23).replace(minute=59).replace(second=59).replace(microsecond=999999)
 
     elif args.start_date is not None and args.end_date is not None:
         start_date = datetime.strptime(args.start_date, "%Y-%m").replace(day=1).replace(hour=0).replace(minute=0)\
-            .replace(second=0).replace(microsecond=0) if args.start_date is not None else None
-        end_date = datetime.strptime(args.end_date, "%Y-%m") if args.end_date is not None else None
-        end_date.replace(day=last_day_of_month(end_date.year, end_date.day))\
+            .replace(second=0).replace(microsecond=0)
+        end_date = datetime.strptime(args.end_date, "%Y-%m")
+        end_date.replace(day=last_day_of_month(end_date.year, end_date.month))\
             .replace(hour=23).replace(minute=59).replace(second=59).replace(microsecond=999999)
 
     else:
