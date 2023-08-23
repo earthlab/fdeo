@@ -51,3 +51,102 @@ The SSM data used for inference is from NASA's GLDAS mission. A summary of the d
 found at https://disc.gsfc.nasa.gov/datasets/GLDAS_CLSM025_DA1_D_2.2/summary. The files are hosted at
 https://hydro1.gesdisc.eosdis.nasa.gov/data/GLDAS/GLDAS_CLSM025_DA1_D.2.2/. The band used is the 'SoilMoist_S_tavg' 
 band. In order to sample to a monthly temporal resolution, the sum of each daily SSM value was used for each month.
+
+# Getting started
+
+## Creating the environment
+
+After cloning this repo to a write-accessible directory, use the requirements.txt or environment.yml file to create the 
+virtual environment for running the code. From within the fdeo directory, run one of following sets of code in the
+terminal depending on whether you would like to use a virtual environment or conda environment
+
+### Virtual Environment
+```commandline
+python -m venv fdeo_env
+
+// macOS / Linux 
+source fdeo_env/bin/activate
+
+// Windows
+fdeo_env\Scripts\activate
+
+pip install -r requirements.txt
+```
+
+### Conda
+```commandline
+conda env create -f environment.yml
+conda activate fdeo_env
+```
+
+## Running the code
+
+
+### Credentials
+First, make sure the environment is activated. The main script is at fdeo/fdeo.py. Because this script will make calls 
+to the NASA earthdata API, you must supply your urs.earthdata.nasa.gov login credentials. These can either be passed in
+as command line arguments, or set as environment variables (recommended). To set your credentials as env variables, run
+the following commands in the shell you will be running the code from
+
+macOS / Linux
+```bash
+export FDEO_USER=<your_earthdata_username>
+export FDEO_PWD=<your_earthdata_password>
+```
+
+To set these permanently, add this command to your ~/.bashrc or ~/.bash_profile
+
+Windows
+```powershell
+$env:FDEO_USER=<your_earthdata_username>
+$env:FDEO_PWD=<your_earthdata_password>
+```
+
+To set these permanently add them in your system settings
+
+
+### Calling the executable
+Call the fdeo.py script from the root project directory (or add the project directory to the PYTHONPATH environment
+variable) like 
+
+```bash
+python fdeo/fdeo.py 
+```
+
+If your credentials are not set as environment variables, pass them in as command line arguments
+
+```bash
+python fdeo/fdeo.py -u <earthdata_username> -p <earthdata_password> 
+```
+
+Make sure to escape any special characters, like '$'
+
+This will gather API data from the two most recent months in the data store based on the current time. Generally, data 
+will be available up to the previous month. Running this script in August 2023, for example, will gather API data for 
+June and July 2023, and generate predictions for August and September 2023.
+
+If you would like a custom start and end date for the API data retrieval, you can specify those with flags like so
+```bash
+python fdeo/fdeo.py -u <earthdata_username> -p <earthdata_password> --start_date 2023-02 --end_date 2023-05 
+```
+
+This will generate predictions for April - July 2023
+
+### Output
+
+Whenever the script is run, the coefficients for the model will be looked for at data/model_coefficients.pkl. If this 
+file does not exist, the model will be trained again and this file will be written out for use in subsequent calls.
+Plots of the fire observation data and the predictions over the 2003 - 2013 training data range will also be looked for
+in data/training_data_observation_results and data/training_data_prediction_results. If these do not exist they will be
+created so that one can analyze the performance of the model over this period for which truth data exists. 
+
+The new prediction data will be written to data/prediction_results/<prediction_start_date>_<prediction_end_date>.
+For example, if one were to call 
+```bash
+python fdeo/fdeo.py -u <earthdata_username> -p <earthdata_password> --start_date 2023-02 --end_date 2023-05 
+```
+then a directory with the results will be created at data/prediction_results/2023.04_2023.07.
+This directory will contain two files called prediction_categorical.tif and prediction_probability.tif which contain a
+band for each month of their respective prediction metrics (categorical or probabilistic). There are also two folders 
+called categorical_plots and probability plots which contain images of the prediction plots for each month.
+

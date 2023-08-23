@@ -1,4 +1,4 @@
-name: fdeo
+name: fdeo_env
 channels:
   - defaults
 dependencies:

@@ -478,15 +478,6 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--password', type=str, required=False, dest='password',
                         help='Password to https://urs.earthdata.nasa.gov/ . '
                              'Credentials can also be provided by providing a value to --credentials argument')
-    parser.add_argument('--ssm_test', type=str, required=False,
-                        help='Path to file containing username and then password separated by newline for '
-                             'https://urs.earthdata.nasa.gov/ ')
-    parser.add_argument('--evi_test', type=str, required=False,
-                        help='Path to file containing username and then password separated by newline for '
-                             'https://urs.earthdata.nasa.gov/ ')
-    parser.add_argument('--vpd_test', type=str, required=False,
-                        help='Path to file containing username and then password separated by newline for '
-                             'https://urs.earthdata.nasa.gov/ ')
 
     stacked_ssm_data = None
     stacked_vpd_data = None
@@ -549,16 +540,6 @@ if __name__ == '__main__':
     stacked_evi_data = stack_raster_months(sorted_evi_files)
     stacked_vpd_data = stack_raster_months(sorted_vpd_files)
     stacked_ssm_data = stack_raster_months(sorted_ssm_files)
-
-    ssm._numpy_array_to_raster('ssm_plot.tif', stacked_ssm_data[:, :, 0],
-                               [-126.75, 0.25, 0, 51.75, 0, -0.25],
-                               'wgs84', gdal_data_type=gdal.GDT_Float32)
-    ssm._numpy_array_to_raster('evi_plot.tif', stacked_evi_data[:, :, 0],
-                               [-126.75, 0.25, 0, 51.75, 0, -0.25],
-                               'wgs84', gdal_data_type=gdal.GDT_Float32)
-    ssm._numpy_array_to_raster('vpd_plot.tif', stacked_vpd_data[:, :, 0],
-                               [-126.75, 0.25, 0, 51.75, 0, -0.25],
-                               'wgs84', gdal_data_type=gdal.GDT_Float32)
 
     main(
         ssm_data=stacked_ssm_data,
