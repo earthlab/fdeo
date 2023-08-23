@@ -256,7 +256,6 @@ class FDEO:
 
         for month in range(n_months):
             results_date = calc_months_after(results_start_date, month)
-            print(month, results_date.year, results_date.month)
             title = f'{self.MONTHS[results_date.month - 1]} {results_date.year}'
 
             fig, ax = plt.subplots()
@@ -318,7 +317,6 @@ class FDEO:
                 if self.lc1[i, j] not in self.lc_type_indices:
                     val_new_prob[i, j, :] = np.NaN
 
-        print(np.nanmax(val_new_prob), np.nanmin(val_new_prob))
         BaseAPI._numpy_array_to_raster(output_probability_file, val_new_prob, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
         self._create_plots(os.path.join(os.path.dirname(output_probability_file), 'probability_plots'),
@@ -458,7 +456,6 @@ def main(
     # Write output tif files and plots
     results_start_date = start_date + timedelta(days=62)
     results_end_date = end_date + timedelta(days=35)
-    print(data_start_date, end_date, results_start_date, results_end_date)
     output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results', f'{results_start_date.year}.{results_start_date.month}_{results_end_date.year}.{results_end_date.month}')
     os.makedirs(output_dir, exist_ok=True)
 
@@ -481,10 +478,6 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--password', type=str, required=False, dest='password',
                         help='Password to https://urs.earthdata.nasa.gov/ . '
                              'Credentials can also be provided by providing a value to --credentials argument')
-    parser.add_argument('-c', '--credentials', type=str, required=False, dest='credentials',
-                        help='Path to file containing username and then password separated by newline for '
-                             'https://urs.earthdata.nasa.gov/ ')
-
     parser.add_argument('--ssm_test', type=str, required=False,
                         help='Path to file containing username and then password separated by newline for '
                              'https://urs.earthdata.nasa.gov/ ')
@@ -522,15 +515,14 @@ if __name__ == '__main__':
 
     username = args.username
     password = args.password
-    if args.credentials is not None:
-        with open(args.credentials, 'r') as f:
-            lines = f.readlines()
-            username = lines[0].strip('\n').strip(' ')
-            password = lines[1].strip('\n').strip(' ')
+    if username is None:
+        username = os.environ['FDEO_USER'] if 'FDEO_USER' in os.environ else None
+    if password is None:
+        password = os.environ['FDEO_PWD'] if 'FDEO_PWD' in os.environ else None
 
     if username is None or password is None:
-        raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials with --credentials argument'
-                         ' or -u and -p arguments if you would like to download from the API')
+        raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials by setting enrivonment variables FDEO_USER, FDEO_PWD'
+                         ' or by -u and -p arguments if you would like to download from the API')
 
     # Download all of the data
     ssm = SSM(username=username, password=password)

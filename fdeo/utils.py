@@ -6,8 +6,6 @@ import os
 import calendar
 from datetime import datetime
 
-
-
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
@@ -31,7 +29,6 @@ def calc_months_after(date: datetime, n_months: int):
     if month > 12:
          year += 1
          month -= 12
-    print(date, n_months, year, month)
     return datetime(year, month, 1)
 
 
