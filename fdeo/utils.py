@@ -24,11 +24,16 @@ def two_months_before(date: datetime):
 
 
 def calc_months_after(date: datetime, n_months: int):
+    print(date, n_months)
     year = date.year + (n_months // 12)
+    print(year)
     month = date.month + (n_months - (12 * (n_months // 12)))
+    print(month)
     if month > 12:
+         print('y')
          year += 1
          month -= 12
+    print(year, month)
     return datetime(year, month, 1)
 
 

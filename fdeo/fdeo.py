@@ -409,19 +409,26 @@ def main(
        ssm_data: np.array,
        evi_data: np.array,
        vpd_data: np.array,
-       data_start_date: datetime
+       data_start_date: datetime,
+       data_end_date: datetime
             ) -> None:
     """
     Reads input data and creates smoothed climatology of wildfire burned data. Default training period is 2003-2013.
 
     Args:
-        ssm_data (np.array): Path to the ssm datafile used for new predictions
-        vpd_data (np.array): Path to the vpd datafile used for new predictions
-        evi_data (np.array): Path to the evi data used for new predictions
+        ssm_data (np.array): Array of ssm data used to make predictions
+        vpd_data (np.array): Array of vpd data used to make predictions
+        evi_data (np.array): Array of evi data used to make predictions
+        data_start_date (datetime): When the start of the data query was
+        data_end_date (datetime): When the end of the data query was
     """
     # On initialization the model will be looked for. If it does not exist then the model will be trained and saved for
     # future initializations
     fdeo = FDEO()
+
+    print(ssm_data.shape)
+    print(evi_data.shape)
+    print(vpd_data.shape)
 
     # First see if training data observation results have been made, if not create them
     training_data_observation_dir = os.path.join(FDEO_DIR, 'data', 'training_data_observation_results')
@@ -452,10 +459,10 @@ def main(
     print('Plotting predictions for 2 month lead times')
     prediction_land_cover_dict = fdeo.calculate_land_cover_dict(ssm_data, evi_data, vpd_data)
     prediction_data_fire_inference = fdeo.inference(prediction_land_cover_dict)
-
     # Write output tif files and plots
-    results_start_date = start_date + timedelta(days=62)
-    results_end_date = end_date + timedelta(days=35)
+    results_start_date = data_start_date + timedelta(days=62)
+    results_end_date = data_end_date + timedelta(days=35)
+    print(results_start_date, results_end_date)
     output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results', f'{results_start_date.year}.{results_start_date.month}_{results_end_date.year}.{results_end_date.month}')
     os.makedirs(output_dir, exist_ok=True)
 
@@ -471,7 +478,9 @@ if __name__ == '__main__':
     parser.add_argument('--start_date', type=str, required=False,
                         help='Begin date in YYYY-MM format of datafiles to be downloaded from API')
     parser.add_argument('--end_date', type=str, required=False,
-                        help='End date in YYYY-MM format of datafiles to be downloaded from API')
+                        help='End date in YYYY-MM format of datafiles to be downloaded from API. The end data is'
+                             ' inclusive. For example 2017-09 will include September data and will produce predictions'
+                             ' for November')
     parser.add_argument('-u', '--username', type=str, required=False, dest='username',
                         help='Username to https://urs.earthdata.nasa.gov/ . '
                              'Credentials can also be provided by providing a value to --credentials argument')
@@ -528,14 +537,14 @@ if __name__ == '__main__':
     os.makedirs(ssm_dir, exist_ok=True)
     os.makedirs(evi_dir, exist_ok=True)
     os.makedirs(vpd_dir, exist_ok=True)
-
+    print(start_date, end_date)
     ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
     evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
     vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
 
-    sorted_evi_files = evi.sort_tif_files(evi_dir)
-    sorted_vpd_files = vpd.sort_tif_files(vpd_dir)
-    sorted_ssm_files = ssm.sort_tif_files(ssm_dir)
+    sorted_evi_files = evi.sort_tif_files(evi_dir, start_date, end_date)
+    sorted_vpd_files = vpd.sort_tif_files(vpd_dir, start_date, end_date)
+    sorted_ssm_files = ssm.sort_tif_files(ssm_dir, start_date, end_date)
 
     stacked_evi_data = stack_raster_months(sorted_evi_files)
     stacked_vpd_data = stack_raster_months(sorted_vpd_files)
@@ -545,5 +554,6 @@ if __name__ == '__main__':
         ssm_data=stacked_ssm_data,
         evi_data=stacked_evi_data,
         vpd_data=stacked_vpd_data,
-        data_start_date=start_date
+        data_start_date=start_date,
+        data_end_date=end_date
         )

@@ -18,7 +18,7 @@ from osgeo import osr, ogr, gdal
 import numpy as np
 from pyhdf.SD import SD, SDC
 import netCDF4 as nc
-from utils import set_tiff_resolution
+from utils import set_tiff_resolution, last_day_of_month
 
 
 # TODO: Make sure the arrays are in the correct orientation and that the
@@ -206,16 +206,20 @@ class BaseAPI:
 
         return output_path
 
-    def sort_tif_files(self, input_dir: str):
+    def sort_tif_files(self, input_dir: str, start_date: datetime, end_date: datetime):
         group_dicts = []
         for file in os.listdir(input_dir):
             match = re.match(self._tif_re, file)
             if match:
                 group_dicts.append((os.path.join(input_dir, file), match.groupdict()))
 
-        return [w[0] for w in sorted([v for v in group_dicts], key=lambda x: datetime(int(x[1]['year']),
-                                                                                      int(x[1]['month']),
-                                                                                      int(x[1]['day'])).timestamp())]
+        return [
+            w[0] for w in sorted([v for v in group_dicts], key=lambda x:
+            datetime(int(x[1]['year']), int(x[1]['month']), int(x[1]['day'])).timestamp())
+            if start_date <= datetime(int(w[1]['year']), int(w[1]['month']), last_day_of_month(int(w[1]['year']),
+                                                                                               int(w[1]['month']))
+                                      ) <= end_date
+       ]
 
 
 class SSM(BaseAPI):
