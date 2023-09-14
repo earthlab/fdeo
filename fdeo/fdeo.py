@@ -7,18 +7,22 @@ Created on Thu Jun 30 13:13:16 2022
 """
 import os
 import argparse
+import sys
+
 import numpy as np
 from datetime import datetime, timedelta
 from scipy.io import loadmat
 from scipy import signal
 from functions import data2index, empdis
-from api import VPD, EVI, SSM, BaseAPI
-from utils import stack_raster_months, last_day_of_month, two_months_before, calc_months_after
+from api import VPD, EVI, SSM, BaseAPI, NoDataAvailable
+from utils import stack_raster_months, last_day_of_month
 import pickle
 from typing import List, Dict, Any
 from osgeo import gdal
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from dateutil.relativedelta import relativedelta
+
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -107,15 +111,15 @@ class FDEO:
     def calculate_land_cover_dict(ssm_data: np.array, evi_data: np.array, vpd_data: np.array):
         # Prepare and define training data sets
         # Deciduous DI
-        sc_drought = 1  # month range
+        sc_drought = 0  # month range
         deciduous_best_ba_training = data2index(ssm_data, sc_drought)
 
         # Shrubland DI
-        sc_drought = 1
+        sc_drought = 0
         shrubland_best_ba_training = data2index(evi_data, sc_drought)
 
         # Evergreen DI
-        sc_drought = 3
+        sc_drought = 2
         vpd_new_drought = data2index(vpd_data, sc_drought)
         evergreen_best_ba_training = vpd_new_drought
 
@@ -123,7 +127,7 @@ class FDEO:
         herbaceous_best_ba_training = vpd_new_drought
 
         # Wetland DI
-        sc_drought = 3
+        sc_drought = 2
         wetland_best_ba_training = data2index(ssm_data, sc_drought)
 
         # List of land-cover IDs according to below
@@ -255,7 +259,7 @@ class FDEO:
         os.makedirs(output_dir, exist_ok=True)
 
         for month in range(n_months):
-            results_date = calc_months_after(results_start_date, month)
+            results_date = (results_start_date + relativedelta(months=n_months)).replace(day=1)
             title = f'{self.MONTHS[results_date.month - 1]} {results_date.year}'
 
             fig, ax = plt.subplots()
@@ -308,7 +312,7 @@ class FDEO:
                 mat = val_new_prob_m[idx_lc]
                 mat = mat.reshape((len(mat), 1))
 
-                val_new_prob_m[idx_lc] = empdis(mat).flatten()
+                val_new_prob_m[idx_lc] = empdis(mat)
 
             val_new_prob[:, :, k] = val_new_prob_m
 
@@ -320,7 +324,8 @@ class FDEO:
         BaseAPI._numpy_array_to_raster(output_probability_file, val_new_prob, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
         self._create_plots(os.path.join(os.path.dirname(output_probability_file), 'probability_plots'),
-                           calc_months_after(fire_data_start_date, 0 if observation else self._lead), val_new_prob)
+                           (fire_data_start_date + relativedelta(months=0 if observation else self._lead)
+                            ).replace(day=1), val_new_prob)
 
     def calculate_categorical(self, fire_data: np.array, fire_data_start_date: datetime, output_categorical_file: str,
                               observation: bool = False):
@@ -340,7 +345,7 @@ class FDEO:
                 mat = mat.reshape((len(mat), 1))
 
                 # probabilistic CDF
-                y = empdis(mat).flatten()
+                y = empdis(mat)
 
                 # 33 percentile threshold for observation time series
                 T1 = np.min(y)
@@ -380,11 +385,13 @@ class FDEO:
         BaseAPI._numpy_array_to_raster(output_categorical_file, val_new_cat, BaseAPI.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                        n_bands=fire_data.shape[2], gdal_data_type=gdal.GDT_Float32)
         self._create_plots(os.path.join(os.path.dirname(output_categorical_file), 'categorical_plots'),
-                           calc_months_after(fire_data_start_date, 0 if observation else self._lead), val_new_cat,
-                           categorical=True)
+                           (fire_data_start_date + relativedelta(months=0 if observation else self._lead)
+                            ).replace(day=1), val_new_cat, categorical=True)
 
     def inference(self, land_cover_types: List[Dict[str, Any]]) -> np.array:
-        inference_results_array = np.full(land_cover_types[0]['data'].shape, np.nan)
+        land_cover_shape = land_cover_types[0]['data'].shape
+        inference_results_array = np.full((land_cover_shape[0], land_cover_shape[1], land_cover_shape[2] + self._lead),
+                                          np.nan)
         for land_cover_type in land_cover_types:
             lc_index = land_cover_type['index']
             data = land_cover_type['data']
@@ -394,13 +401,13 @@ class FDEO:
                 for i in range(data.shape[0]):
                     for j in range(data.shape[1]):
                         if self.lc1[i, j] == lc_index:
-                            inference_results_array[i, j, k - self._lead] = (
+                            inference_results_array[i, j, k + self._lead] = (
                                     self.coefficients[0] * (data[i, j, k] ** 2)
                                     + self.coefficients[1] * data[i, j, k]
                                     + self.coefficients[2]
                             )
 
-        return inference_results_array
+        return inference_results_array[:, :, self._lead:]
 
 
 
@@ -426,15 +433,11 @@ def main(
     # future initializations
     fdeo = FDEO()
 
-    print(ssm_data.shape)
-    print(evi_data.shape)
-    print(vpd_data.shape)
-
     # First see if training data observation results have been made, if not create them
     training_data_observation_dir = os.path.join(FDEO_DIR, 'data', 'training_data_observation_results')
     os.makedirs(training_data_observation_dir, exist_ok=True)
-    training_data_obs_prob_file = os.path.join(training_data_observation_dir, 'obs_probability.tif')
-    training_data_obs_cat_file = os.path.join(training_data_observation_dir, 'obs_categorical.tif')
+    training_data_obs_prob_file = os.path.join(training_data_observation_dir, 'observed_probability.tif')
+    training_data_obs_cat_file = os.path.join(training_data_observation_dir, 'observed_categorical.tif')
     if not os.path.exists(training_data_obs_prob_file) or not os.path.exists(training_data_obs_cat_file):
         print(f'Writing training data observation files to {training_data_obs_prob_file}, {training_data_obs_cat_file}')
         fdeo.calculate_probability(fdeo.firemon_tot_size, datetime(2003, 1, 1), training_data_obs_prob_file,
@@ -445,8 +448,8 @@ def main(
     # See if training data prediction results have been made, if not create them
     training_data_prediction_dir = os.path.join(FDEO_DIR, 'data', 'training_data_prediction_results')
     os.makedirs(training_data_prediction_dir, exist_ok=True)
-    training_data_pred_prob_file = os.path.join(training_data_prediction_dir, 'pred_probability.tif')
-    training_data_pred_cat_file = os.path.join(training_data_prediction_dir, 'pred_categorical.tif')
+    training_data_pred_prob_file = os.path.join(training_data_prediction_dir, 'prediction_probability.tif')
+    training_data_pred_cat_file = os.path.join(training_data_prediction_dir, 'prediction_categorical.tif')
     if not os.path.exists(training_data_pred_prob_file) or not os.path.exists(training_data_pred_cat_file):
         print(f'Writing training data prediction files to {training_data_pred_prob_file}, {training_data_pred_cat_file}')
         training_land_cover_dict = fdeo.calculate_land_cover_dict(fdeo.ssm_training_data, fdeo.evi_training_data,
@@ -462,14 +465,17 @@ def main(
     # Write output tif files and plots
     results_start_date = data_start_date + timedelta(days=62)
     results_end_date = data_end_date + timedelta(days=35)
-    print(results_start_date, results_end_date)
-    output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results', f'{results_start_date.year}.{results_start_date.month}_{results_end_date.year}.{results_end_date.month}')
+    output_dir = os.path.join(FDEO_DIR, 'data', 'prediction_results',
+                              f'{results_start_date.year}.{results_start_date.month}_{results_end_date.year}'
+                              f'.{results_end_date.month}')
     os.makedirs(output_dir, exist_ok=True)
 
     fdeo.calculate_probability(prediction_data_fire_inference, data_start_date,
                                os.path.join(output_dir, 'prediction_probability.tif'))
     fdeo.calculate_categorical(prediction_data_fire_inference, data_start_date,
                                os.path.join(output_dir, 'prediction_categorical.tif'))
+
+    print(f'Finished writing predictions to {output_dir}')
 
 
 if __name__ == '__main__':
@@ -496,22 +502,22 @@ if __name__ == '__main__':
 
     # Make predictions for this month and the next month
     if args.start_date is None and args.end_date is None:
-        two_months_ago = two_months_before(datetime.now())
-        next_month = two_months_ago.replace(day=28) + timedelta(days=4)
-        start_date = two_months_ago.replace(day=1).replace(hour=0).replace(minute=0).replace(second=0)\
-            .replace(microsecond=0)
-        end_date = next_month.replace(day=last_day_of_month(next_month.year, next_month.month))\
-            .replace(hour=23).replace(minute=59).replace(second=59).replace(microsecond=999999)
+        start_date = (datetime.now() - relativedelta(months=1)).replace(day=1, hour=0, minute=0, second=0,
+                                                                           microsecond=0)
+        end_date = start_date.replace(day=last_day_of_month(start_date.year, start_date.month), hour=23, minute=59,
+                                      second=59, microsecond=999999)
 
     elif args.start_date is not None and args.end_date is not None:
-        start_date = datetime.strptime(args.start_date, "%Y-%m").replace(day=1).replace(hour=0).replace(minute=0)\
-            .replace(second=0).replace(microsecond=0)
+        start_date = datetime.strptime(args.start_date, "%Y-%m").replace(day=1, hour=0, minute=0, second=0,
+                                                                         microsecond=0)
         end_date = datetime.strptime(args.end_date, "%Y-%m")
-        end_date.replace(day=last_day_of_month(end_date.year, end_date.month))\
-            .replace(hour=23).replace(minute=59).replace(second=59).replace(microsecond=999999)
+        end_date = end_date.replace(day=last_day_of_month(end_date.year, end_date.month), hour=23, minute=59, second=59,
+                                    microsecond=999999)
 
     else:
         raise ValueError('Must specify both start date and end date or neither')
+
+    print(f'Gathering data from {start_date} to {end_date} ...')
 
     username = args.username
     password = args.password
@@ -521,10 +527,11 @@ if __name__ == '__main__':
         password = os.environ['FDEO_PWD'] if 'FDEO_PWD' in os.environ else None
 
     if username is None or password is None:
-        raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials by setting enrivonment variables FDEO_USER, FDEO_PWD'
-                         ' or by -u and -p arguments if you would like to download from the API')
+        raise ValueError('Must supply https://urs.earthdata.nasa.gov/ credentials by setting environment variables'
+                         ' FDEO_USER, FDEO_PWD or by -u and -p arguments if you would like to download from the API')
 
-    # Download all of the data
+    # Download all the data
+    # TODO: Do something if EVI product is late
     ssm = SSM(username=username, password=password)
     evi = EVI(username=username, password=password)
     vpd = VPD(username=username, password=password)
@@ -537,10 +544,25 @@ if __name__ == '__main__':
     os.makedirs(ssm_dir, exist_ok=True)
     os.makedirs(evi_dir, exist_ok=True)
     os.makedirs(vpd_dir, exist_ok=True)
-    print(start_date, end_date)
-    ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
-    evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
-    vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
+
+    try:
+        ssm_data = ssm.create_clipped_time_series(ssm_dir, start_date, end_date)
+    except NoDataAvailable:
+        print(f'The SSM data product for last month ({FDEO.MONTHS[start_date.month-1]}) is not yet available. Please'
+              f' try again later or manually input an earlier start and end date.')
+        sys.exit(1)
+    try:
+        evi_data = evi.create_clipped_time_series(evi_dir, start_date, end_date)
+    except NoDataAvailable:
+        print(f'The EVI data product for last month ({FDEO.MONTHS[start_date.month-1]}) is not yet available. Please'
+              f' try again later or manually input an earlier start and end date.')
+        sys.exit(1)
+    try:
+        vpd_data = vpd.create_clipped_time_series(vpd_dir, start_date, end_date)
+    except NoDataAvailable:
+        print(f'The VPD data product for last month ({FDEO.MONTHS[start_date.month-1]}) is not yet available. Please'
+              f' try again later or manually input an earlier start and end date.')
+        sys.exit(1)
 
     sorted_evi_files = evi.sort_tif_files(evi_dir, start_date, end_date)
     sorted_vpd_files = vpd.sort_tif_files(vpd_dir, start_date, end_date)

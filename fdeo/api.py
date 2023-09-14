@@ -21,14 +21,17 @@ import netCDF4 as nc
 from utils import set_tiff_resolution, last_day_of_month
 
 
-# TODO: Make sure the arrays are in the correct orientation and that the
+class NoDataAvailable(Exception):
+    """Raised when no data is available."""
+    pass
+
 
 class BaseAPI:
     """
     Defines all the attributes and methods common to the child APIs.
     """
     PROJ_DIR = os.path.dirname(os.path.dirname(__file__))
-    LAND_COVER_GEOTRANSFORM = [-126.75, 0.25, 0, 23.875, 0, 0.25]
+    LAND_COVER_GEOTRANSFORM = [-126.75, 0.25, 0, 51.625, 0, -0.25]
     LAND_COVER_X_SIZE = 244
     LAND_COVER_Y_SIZE = 112
 
@@ -133,7 +136,6 @@ class BaseAPI:
         """
         # From earthlab firedpy package
         if len(queries) > 0:
-            print("Retrieving data... skipping over any cached files")
             try:
                 with Pool(int(self._core_count / 2)) as pool:
                     for _ in tqdm(pool.imap_unordered(self._download, queries), total=len(queries)):
@@ -146,8 +148,6 @@ class BaseAPI:
                     template = "Download failed: error type {0}:\n{1!r}"
                     message = template.format(type(e).__name__, e.args)
                     print(message)
-
-        print(f'Wrote {len(queries)} files to {outdir}')
 
     @staticmethod
     def _create_raster(output_path: str, columns: int, rows: int, n_band: int = 1,
@@ -281,7 +281,7 @@ class SSM(BaseAPI):
         date_range = [date for date in self._dates + self._early_product_dates if
                       t_start.year <= date.year <= t_stop.year]
         if not date_range:
-            raise ValueError('There is no data available in the time range requested')
+            raise NoDataAvailable('There is no data available in the time range requested')
 
         queries = []
 
@@ -338,7 +338,7 @@ class SSM(BaseAPI):
                 except OSError:
                     continue
             stacked_array = np.stack(daily_ssm, axis=0)
-            sum_array = np.sum(stacked_array, axis=0)[0]
+            sum_array = np.mean(stacked_array, axis=0)[0]
 
             # Make the off nominal value NaN
             idx = np.where(sum_array < 0)
@@ -370,7 +370,6 @@ class SSM(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
-        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                         gdal_data_type=gdal.GDT_Float32)
 
@@ -423,7 +422,7 @@ class VPD(BaseAPI):
         t_stop = self._dates[-1] if t_stop is None else t_stop
         date_range = [date for date in self._dates if t_start.year <= date.year <= t_stop.year]
         if not date_range:
-            raise ValueError('There is no data available in the time range requested')
+            raise NoDataAvailable('There is no data available in the time range requested')
 
         queries = []
         for date in date_range:
@@ -468,7 +467,6 @@ class VPD(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
-        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84',
                                         gdal_data_type=gdal.GDT_Float32)
 
@@ -538,7 +536,7 @@ class EVI(BaseAPI):
         date_range = [date for date in self._dates if t_start <= date <= t_stop]
 
         if not date_range:
-            raise ValueError('There is no data available in the time range requested')
+            raise NoDataAvailable('There is no data available in the time range requested')
 
         queries = []
         for date in date_range:
@@ -608,5 +606,4 @@ class EVI(BaseAPI):
                                                   self.LAND_COVER_GEOTRANSFORM, self.LAND_COVER_X_SIZE,
                                                   self.LAND_COVER_Y_SIZE)
 
-        fixed_to_land_cover = np.flip(fixed_to_land_cover, axis=0)
         _ = self._numpy_array_to_raster(output_tif_file, fixed_to_land_cover, self.LAND_COVER_GEOTRANSFORM, 'wgs84')

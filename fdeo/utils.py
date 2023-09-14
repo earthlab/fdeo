@@ -5,36 +5,27 @@ import numpy as np
 import os
 import calendar
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+def add_months(date_obj, n_months):
+    new_date = date_obj + relativedelta(months=n_months)
+    # Set day to the first of the month
+    new_date = new_date.replace(day=1)
+    return new_date
+
+
+def subtract_months(date_obj, n_months):
+    new_date = date_obj - relativedelta(months=n_months)
+    # Set day to the first of the month
+    new_date = new_date.replace(day=1)
+    return new_date
+
 
 FDEO_DIR = os.path.dirname(os.path.dirname(__file__))
 
 
 def last_day_of_month(year, month):
     return calendar.monthrange(year, month)[1]
-
-
-def two_months_before(date: datetime):
-    year = date.year
-    curr_month = date.month
-    two_month = curr_month - 2
-    if two_month <= 0:
-        year -= 1
-        two_month += 12
-    return datetime(year, two_month, 1)
-
-
-def calc_months_after(date: datetime, n_months: int):
-    print(date, n_months)
-    year = date.year + (n_months // 12)
-    print(year)
-    month = date.month + (n_months - (12 * (n_months // 12)))
-    print(month)
-    if month > 12:
-         print('y')
-         year += 1
-         month -= 12
-    print(year, month)
-    return datetime(year, month, 1)
 
 
 def stack_raster_months(sorted_input_files: List[str]) -> np.array:
@@ -63,7 +54,7 @@ def set_tiff_resolution(input_res_array: str, input_res_geotransform: List[float
     # the lats will be descending. If this is the case, sort the lats and flip the data about the "x" axis
     if input_res_lats[0] > input_res_lats[1]:
         input_res_lats = sorted(input_res_lats)
-        input_res_array = np.flip(input_res_array, axis=0)  # Flip about the 'lon' axis for testing
+        input_res_array = np.flip(input_res_array, axis=0)  # Flip about the 'lon' axis
 
     input_res_interp = RegularGridInterpolator((input_res_lats, input_res_lons),
                                                input_res_array, method='linear', bounds_error=False)
