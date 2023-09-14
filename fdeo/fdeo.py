@@ -259,7 +259,7 @@ class FDEO:
         os.makedirs(output_dir, exist_ok=True)
 
         for month in range(n_months):
-            results_date = (results_start_date + relativedelta(months=n_months)).replace(day=1)
+            results_date = (results_start_date + relativedelta(months=month)).replace(day=1)
             title = f'{self.MONTHS[results_date.month - 1]} {results_date.year}'
 
             fig, ax = plt.subplots()
