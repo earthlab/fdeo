@@ -121,9 +121,9 @@ python fdeo/fdeo.py -u <earthdata_username> -p <earthdata_password>
 
 Make sure to escape any special characters, like '$'
 
-This will gather API data from the two most recent months in the data store based on the current time. Generally, data 
+This will gather API data from the previous month in the data store based on the current time. Generally, data 
 will be available up to the previous month. Running this script in August 2023, for example, will gather API data for 
-June and July 2023, and generate predictions for August and September 2023.
+July 2023, and generate predictions for September 2023.
 
 If you would like a custom start and end date for the API data retrieval, you can specify those with flags like so
 ```bash
