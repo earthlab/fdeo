@@ -1,4 +1,5 @@
 # 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15650700.svg)](https://doi.org/10.5281/zenodo.15650700)
 
 # Overview
 The Fire Danger from Earth Observations (FDEO) Python package incorporates three types of remote sensing data in order
@@ -145,8 +146,12 @@ For example, if one were to call
 ```bash
 python fdeo/fdeo.py -u <earthdata_username> -p <earthdata_password> --start_date 2023-02 --end_date 2023-05 
 ```
-then a directory with the results will be created at data/prediction_results/2023.04_2023.07.
+Then a directory with the results will be created at data/prediction_results/2023.04_2023.07.
 This directory will contain two files called prediction_categorical.tif and prediction_probability.tif which contain a
 band for each month of their respective prediction metrics (categorical or probabilistic). There are also two folders 
 called categorical_plots and probability plots which contain images of the prediction plots for each month.
+
+### How to cite this tool
+
+Verleye, E., Fanguna, L., & Amaral, C. (2025). Fire Danger from Earth Observations (FDEO) Python package. Zenodo. https://doi.org/10.5281/zenodo.15650700
 
